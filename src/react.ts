@@ -33,7 +33,7 @@ export interface UsePhylaxRpcSwitchResult {
 
 /**
  * React hook wrapping {@link PhylaxRpcSwitch} with discovery/detection/switch state.
- * React is an optional peer dependency; import from `@phylax/rpc-switch/react`.
+ * React is an optional peer dependency; import from `phylax-rpc/react`.
  */
 export function usePhylaxRpcSwitch(config: PhylaxRpcConfig): UsePhylaxRpcSwitchResult {
   const client = useMemo(
