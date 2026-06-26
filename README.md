@@ -100,6 +100,23 @@ function ProtectedSwap({ transaction }) {
 }
 ```
 
+### Manual-add fallback modal
+
+When `attemptSwitch` returns `manualFallback: true` (the wallet has no one-click `0x1` add), render the manual-add modal to guide the user. It's a self-contained, styleable convenience component — the dApp can replace it entirely.
+
+```tsx
+import { ManualAddModal } from 'phylax-rpc/react';
+
+<ManualAddModal
+  open={result.manualFallback}
+  onClose={() => setOpen(false)}
+  walletName="Rabby"
+  rpcUrl="https://rpc.phylax.systems"
+/>
+```
+
+> Currently a **dummy** placeholder — it renders the dialog chrome but not the per-wallet step content yet.
+
 ## web3-onboard
 
 Wrap Blocknative web3-onboard's `protectedRpcUrl`:
