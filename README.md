@@ -1,4 +1,4 @@
-# @phylax/rpc-switch
+# phylax-rpc
 
 Headless library that detects when a wallet is **off the Phylax RPC** and helps the user switch to it. No UI — dApps own their own rendering.
 
@@ -14,7 +14,7 @@ This package is the headless logic for that flow.
 ## Install
 
 ```sh
-npm install @phylax/rpc-switch
+npm install phylax-rpc
 ```
 
 React is an optional peer dependency, only needed for the `/react` entry.
@@ -22,7 +22,7 @@ React is an optional peer dependency, only needed for the `/react` entry.
 ## Quick start
 
 ```ts
-import { PhylaxRpcSwitch } from '@phylax/rpc-switch';
+import { PhylaxRpcSwitch } from 'phylax-rpc';
 
 const phylax = new PhylaxRpcSwitch({
   rpcUrl: 'https://rpc.phylax.systems',
@@ -89,7 +89,7 @@ Several wallets accept the add/switch and then silently ignore the submitted URL
 ## React
 
 ```tsx
-import { usePhylaxRpcSwitch } from '@phylax/rpc-switch/react';
+import { usePhylaxRpcSwitch } from 'phylax-rpc/react';
 
 function ProtectedSwap({ transaction }) {
   const { refresh, providers, detect, attemptSwitch, detection, switchResult } =
