@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>phylax-rpc — manual-add modal demo</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f5f5f7;
+        color: #111;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      main {
+        max-width: 480px;
+        padding: 32px;
+        text-align: center;
+      }
+      h1 { font-size: 22px; margin: 0 0 8px; }
+      p.sub { color: #555; font-size: 14px; line-height: 1.5; margin: 0 0 28px; }
+      .buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      button.demo {
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        padding: 10px 18px;
+        cursor: pointer;
+      }
+      button.primary { background: #111; color: #fff; }
+      button.secondary { background: #e3e3e8; color: #111; }
+      .note { margin-top: 24px; font-size: 12px; color: #888; }
+      code { background: #e3e3e8; padding: 1px 5px; border-radius: 4px; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@18",
+          "react/jsx-runtime": "https://esm.sh/react@18/jsx-runtime?external=react",
+          "react-dom/client": "https://esm.sh/react-dom@18/client?external=react"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="module">
+      import { createElement as h, useState } from 'react';
+      import { createRoot } from 'react-dom/client';
+      // The *real* built component from the package's /react entry.
+      import { ManualAddModal } from '../dist/react.js';
+
+      const RPC_URL = 'https://rpc.phylax.systems';
+
+      function Demo() {
+        const [open, setOpen] = useState(false);
+        const [wallet, setWallet] = useState(undefined);
+
+        // Mimics the dApp's "Add Phylax" button: in real usage you'd call
+        // attemptSwitch() first; for an unsupported wallet it returns
+        // manualFallback: true, which is your cue to open this modal.
+        const onAdd = () => {
+          setWallet('Rabby');
+          setOpen(true);
+        };
+
+        // Force the modal open regardless of any switch flow.
+        const onForce = () => {
+          setWallet(undefined);
+          setOpen(true);
+        };
+
+        return h(
+          'main',
+          null,
+          h('h1', null, 'phylax-rpc'),
+          h(
+            'p',
+            { className: 'sub' },
+            'Manual-add fallback modal demo. ',
+            h('code', null, 'ManualAddModal'),
+            ' from ',
+            h('code', null, 'phylax-rpc/react'),
+            '.',
+          ),
+          h(
+            'div',
+            { className: 'buttons' },
+            h('button', { className: 'demo primary', onClick: onAdd }, 'Add Phylax'),
+            h('button', { className: 'demo secondary', onClick: onForce }, 'Force show modal'),
+          ),
+          h(
+            'p',
+            { className: 'note' },
+            '“Add Phylax” simulates an unsupported wallet falling back to manual; “Force show modal” opens it directly.',
+          ),
+          h(ManualAddModal, {
+            open,
+            onClose: () => setOpen(false),
+            walletName: wallet,
+            rpcUrl: RPC_URL,
+          }),
+        );
+      }
+
+      createRoot(document.getElementById('root')).render(h(Demo));
+    </script>
+  </body>
+</html>
