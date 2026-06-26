@@ -12,6 +12,8 @@ import type {
 } from './types';
 import type { DiscoverOptions } from './wallets';
 
+export { ManualAddModal, type ManualAddModalProps } from './ManualAddModal';
+
 export interface UsePhylaxRpcSwitchResult {
   /** The underlying headless client. */
   client: PhylaxRpcSwitch;
