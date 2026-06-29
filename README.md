@@ -35,7 +35,9 @@ const providers = await phylax.discoverProviders();
 const wallet = phylax.classifyDetail(providers[0]);
 
 // 2. Detect whether the user is off Phylax, using the *exact* tx they're about to send.
-//    Do NOT pre-fill `gas` — wallets skip estimateGas if you do, and the signal never surfaces.
+//    `transaction` is loose: bigint/decimal `value`, and `from` may be omitted (it's
+//    resolved via a silent `eth_accounts`). Do NOT pre-fill `gas` — wallets skip
+//    estimateGas if you do, and the signal never surfaces.
 const detection = await phylax.detect({ provider: providers[0].provider, transaction });
 
 if (detection.offPhylax) {
@@ -67,6 +69,18 @@ Design rules baked in (from the spike's wallet-source review):
 - **Match on the `data` selector, never the numeric code.** `3` / `-32000` / `-32603` / `-32015` all appear depending on provider/gateway.
 - **Never pre-fill `gas`.** Most wallets skip `eth_estimateGas` when a gas limit is supplied, so the revert never surfaces before signing.
 - **Ignore the wallet's confirm-screen verdict.** It's generic, runs against the wallet's centralized simulator, and fires even for correctly-routed users on Rabby/Rainbow/Zerion/Coinbase.
+
+### Loose transaction input
+
+`detect` (and `switch`'s `verifyTransaction`) accept a **loose** transaction — pass the tx object straight out of viem/ethers/wagmi, no hand-conversion:
+
+- Numeric fields (`value`, `gasPrice`, `maxFeePerGas`, …) accept a `bigint`, an integer `number`, a decimal or `0x` string, or an ethers `BigNumber`. They're coerced to hex quantities internally.
+- `from` is optional. When absent, it's resolved with a **silent** `eth_accounts` (never `eth_requestAccounts` — no popup). If no sender can be resolved, detection returns `inconclusive` rather than throwing.
+
+```ts
+// bigint value, no `from` — this just works:
+await phylax.detect({ provider, transaction: { to, data, value: 10n ** 18n } });
+```
 
 ## How the switch works
 
@@ -126,6 +140,46 @@ const chain = phylax.toWeb3OnboardChain({ publicRpcUrl: 'https://cloudflare-eth.
 // → { id: '0x1', token: 'ETH', label: 'Ethereum (Phylax)', rpcUrl, protectedRpcUrl }
 ```
 
+## wagmi / viem / ethers
+
+`discoverProviders()` (EIP-6963) only sees injected wallets — it's **empty** for WalletConnect, Coinbase, and embedded connectors, whose provider exists only on the connector. Per-framework adapters bridge that gap. They're optional subpath entries with **zero runtime dependency** on the framework (structural typing), so importing one never forces wagmi/viem/ethers into your bundle.
+
+**wagmi** — resolve the *connected* wallet from `useAccount()`:
+
+```ts
+import { useAccount } from 'wagmi';
+import { connectedWallet } from 'phylax-rpc/wagmi';
+
+const account = useAccount();
+const connected = await connectedWallet(account); // { provider, wallet, account } | null
+if (connected) {
+  const detection = await phylax.detect({ provider: connected.provider, transaction });
+}
+```
+
+Or pass the account straight to the React hook and skip discovery entirely:
+
+```tsx
+const account = useAccount();
+const { detect, attemptSwitch } = usePhylaxRpcSwitch({ rpcUrl }, account);
+// detect/attemptSwitch resolve the connected provider + classification automatically.
+await detect({ transaction });
+```
+
+**viem / ethers** — wrap a wallet-backed client as an EIP-1193 provider:
+
+```ts
+import { providerFromWalletClient } from 'phylax-rpc/viem';
+const provider = providerFromWalletClient(walletClient); // viem WalletClient
+
+import { providerFromEthers } from 'phylax-rpc/ethers';
+const provider = providerFromEthers(new BrowserProvider(window.ethereum)); // ethers v6
+```
+
+> **Use the wallet-backed client, not a public-RPC one.** A viem client on an `http` transport (or an ethers `JsonRpcProvider`) routes to a read-only RPC URL — detection would probe the wrong endpoint and always report `on-phylax`. Use `custom(window.ethereum)` / the connector-backed client / `BrowserProvider`.
+
+A full integration is in [`examples/wagmi-swap-guard.tsx`](examples/wagmi-swap-guard.tsx).
+
 ## API
 
 | Export | Purpose |
@@ -133,10 +187,13 @@ const chain = phylax.toWeb3OnboardChain({ publicRpcUrl: 'https://cloudflare-eth.
 | `PhylaxRpcSwitch` | Orchestrator bundling everything below behind one config. |
 | `discoverProviders` | EIP-6963 provider discovery. |
 | `classifyWallet` / `classifyDetail` | Resolve `rdns`/flags → `{ id, platform, assistedSwitch }`. |
-| `detectOffPhylax` | Preflight-as-detection probe. |
+| `detectOffPhylax` | Preflight-as-detection probe (accepts a `LooseTransactionRequest`). |
 | `attemptSwitch` | Assisted add + switch + verify. |
+| `normalizeTransaction` / `toHexQuantity` | Loose-tx coercion primitives. |
 | `decodeErrorString` / `isErrorStringRevert` / `extractRevertData` | Revert decoding primitives. |
 | `buildAddChainParams` / `manualInstructions` / `toWeb3OnboardChain` | Wiring helpers. |
+| `connectedWallet` *(`/wagmi`)* | Resolve the connected wallet's provider + classification from `useAccount()`. |
+| `providerFromWalletClient` *(`/viem`)* / `providerFromEthers` *(`/ethers`)* | Wrap a wallet client as an EIP-1193 provider. |
 
 ## Development
 
