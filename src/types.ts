@@ -67,19 +67,31 @@ export type Numeric = string | number | bigint | { toHexString(): string };
  * `from` is optional (auto-resolved via `eth_accounts` when absent) and the numeric
  * fields accept any {@link Numeric} form, so a tx object straight out of viem/ethers/wagmi
  * can be passed without hand-conversion. Coerced internally before the preflight call.
+ *
+ * Every field also accepts `null`: viem types `to` as `\`0x${string}\` | null` and ethers
+ * v6 types `to`/`from`/`value`/`data` as `… | null`, so a framework-typed tx assigns here
+ * without a cast or spread. A `null` field is treated as absent and dropped before the
+ * preflight (see {@link normalizeTransaction}).
+ *
+ * Deliberately has no `[key: string]` index signature: an index signature would block a
+ * plain `interface`-typed tx (e.g. a Safe `MetaTransactionData`, an ethers
+ * `ContractTransaction`) from assigning, since named interfaces get no implicit index
+ * signature. Extra fields a caller includes (`type`, `chainId`, `accessList`, …) are still
+ * forwarded at runtime — {@link normalizeTransaction} iterates own-enumerable keys — and a
+ * tx held in a variable assigns regardless of extra properties; only a fresh object literal
+ * with an undeclared key would be flagged, in which case spread it.
  */
 export interface LooseTransactionRequest {
-  from?: string;
-  to?: string;
-  data?: string;
-  value?: Numeric;
-  gas?: Numeric;
-  gasLimit?: Numeric;
-  gasPrice?: Numeric;
-  maxFeePerGas?: Numeric;
-  maxPriorityFeePerGas?: Numeric;
-  nonce?: Numeric;
-  [key: string]: unknown;
+  from?: string | null;
+  to?: string | null;
+  data?: string | null;
+  value?: Numeric | null;
+  gas?: Numeric | null;
+  gasLimit?: Numeric | null;
+  gasPrice?: Numeric | null;
+  maxFeePerGas?: Numeric | null;
+  maxPriorityFeePerGas?: Numeric | null;
+  nonce?: Numeric | null;
 }
 
 export interface NativeCurrency {

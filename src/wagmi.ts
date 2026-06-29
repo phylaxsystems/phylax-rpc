@@ -9,8 +9,12 @@ import type { Eip1193Provider, WalletClassification } from './types';
 export interface ConnectorLike {
   id?: string;
   name?: string;
-  /** Present on EIP-6963-backed connectors; the most reliable classification key. */
-  rdns?: string;
+  /**
+   * Present on EIP-6963-backed connectors; the most reliable classification key. wagmi
+   * types this as `string | readonly string[]` (a connector may announce several), so this
+   * matches that shape directly — `classifyWallet` reads the first entry of an array.
+   */
+  rdns?: string | readonly string[];
   getProvider(parameters?: { chainId?: number }): Promise<unknown>;
 }
 

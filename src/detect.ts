@@ -40,17 +40,23 @@ function matchesCredible(reason: string, match: CredibleRevertMatch): boolean {
 }
 
 /**
- * Normalize a loose tx into a wallet-ready params object: coerce every numeric field to a
- * hex quantity and strip `gas`/`gasLimit`.
+ * Normalize a loose tx into a wallet-ready params object: drop `null`/`undefined` and
+ * `gas`/`gasLimit` fields, then coerce every numeric field to a hex quantity.
  *
- * A pre-filled `gas`/`gasLimit` makes most wallets skip estimation entirely, so the
- * credible-require revert never surfaces before signing. We never send one.
+ * `null` is dropped because viem/ethers type most tx fields as `… | null`; a `null` `to`
+ * would otherwise read as a contract-creation call in the preflight, and a `null` `from`
+ * would defeat sender resolution. A pre-filled `gas`/`gasLimit` makes most wallets skip
+ * estimation entirely, so the credible-require revert never surfaces before signing — we
+ * never send one.
  */
 export function normalizeTransaction(
   transaction: LooseTransactionRequest,
 ): Record<string, unknown> {
   const { gas: _gas, gasLimit: _gasLimit, ...rest } = transaction;
-  const out: Record<string, unknown> = { ...rest };
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rest)) {
+    if (value != null) out[key] = value;
+  }
   for (const field of NUMERIC_FIELDS) {
     const value = out[field];
     if (value != null) out[field] = toHexQuantity(value as Numeric);
