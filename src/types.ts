@@ -54,6 +54,34 @@ export interface TransactionRequest {
   [key: string]: unknown;
 }
 
+/**
+ * A numeric tx field as it arrives from real-world tooling: a hex string, a decimal
+ * string, a `number`, a `bigint` (viem), or an ethers `BigNumber` (duck-typed via
+ * `toHexString()`). Normalized to a hex quantity by {@link normalizeTransaction}.
+ */
+export type Numeric = string | number | bigint | { toHexString(): string };
+
+/**
+ * Loose superset of {@link TransactionRequest} accepted at the public boundary.
+ *
+ * `from` is optional (auto-resolved via `eth_accounts` when absent) and the numeric
+ * fields accept any {@link Numeric} form, so a tx object straight out of viem/ethers/wagmi
+ * can be passed without hand-conversion. Coerced internally before the preflight call.
+ */
+export interface LooseTransactionRequest {
+  from?: string;
+  to?: string;
+  data?: string;
+  value?: Numeric;
+  gas?: Numeric;
+  gasLimit?: Numeric;
+  gasPrice?: Numeric;
+  maxFeePerGas?: Numeric;
+  maxPriorityFeePerGas?: Numeric;
+  nonce?: Numeric;
+  [key: string]: unknown;
+}
+
 export interface NativeCurrency {
   name: string;
   symbol: string;
