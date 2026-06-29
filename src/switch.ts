@@ -4,9 +4,9 @@ import { isUserRejection, request } from './eip1193';
 import { toHexChainId } from './hex';
 import type {
   Eip1193Provider,
+  LooseTransactionRequest,
   ResolvedPhylaxRpcConfig,
   SwitchResult,
-  TransactionRequest,
   WalletClassification,
 } from './types';
 
@@ -21,7 +21,9 @@ export interface SwitchOptions {
    * seeing the credible-require now pass. Strongly recommended; without it the outcome
    * can only ever be `unverified`.
    */
-  verifyTransaction?: TransactionRequest;
+  verifyTransaction?: LooseTransactionRequest;
+  /** Sender for the verify probe when `verifyTransaction` omits `from` (see {@link DetectOptions.account}). */
+  account?: string;
   /**
    * Run the assisted path even when the wallet is not on the allowlist. For testing or
    * advanced callers only — the spike showed the call is a no-op on non-allowlisted
@@ -83,6 +85,7 @@ export async function attemptSwitch(options: SwitchOptions): Promise<SwitchResul
   const verification = await detectOffPhylax({
     provider,
     transaction: options.verifyTransaction,
+    account: options.account,
     config,
   });
 

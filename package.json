@@ -25,6 +25,21 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js",
       "require": "./dist/react.cjs"
+    },
+    "./wagmi": {
+      "types": "./dist/wagmi.d.ts",
+      "import": "./dist/wagmi.js",
+      "require": "./dist/wagmi.cjs"
+    },
+    "./viem": {
+      "types": "./dist/viem.d.ts",
+      "import": "./dist/viem.js",
+      "require": "./dist/viem.cjs"
+    },
+    "./ethers": {
+      "types": "./dist/ethers.d.ts",
+      "import": "./dist/ethers.js",
+      "require": "./dist/ethers.cjs"
     }
   },
   "scripts": {
@@ -36,10 +51,22 @@
     "example": "npm run build && python3 -m http.server 8080"
   },
   "peerDependencies": {
-    "react": ">=17"
+    "react": ">=17",
+    "wagmi": ">=2",
+    "viem": ">=2",
+    "ethers": ">=6"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "wagmi": {
+      "optional": true
+    },
+    "viem": {
+      "optional": true
+    },
+    "ethers": {
       "optional": true
     }
   },

@@ -10,7 +10,7 @@ export {
 } from './constants';
 
 export { decodeErrorString, isErrorStringRevert } from './abi';
-export { getSelector, hexToUtf8, normalizeHex, toHexChainId } from './hex';
+export { getSelector, hexToUtf8, normalizeHex, toHexChainId, toHexQuantity } from './hex';
 export {
   collectHexStrings,
   extractRevertData,
@@ -21,6 +21,7 @@ export {
 export {
   buildPreflightParams,
   detectOffPhylax,
+  normalizeTransaction,
   type DetectOptions,
   type PreflightMethod,
 } from './detect';
@@ -64,8 +65,10 @@ export type {
   Eip1193RequestArgs,
   Eip6963ProviderDetail,
   Eip6963ProviderInfo,
+  LooseTransactionRequest,
   ManualInstructions,
   NativeCurrency,
+  Numeric,
   PhylaxRpcConfig,
   ResolvedPhylaxRpcConfig,
   SwitchOutcome,

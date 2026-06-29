@@ -40,6 +40,13 @@ describe('classifyWallet — assisted allowlist', () => {
     }
   });
 
+  it("classifies on the first entry when rdns is wagmi's readonly string[]", () => {
+    const c = classifyWallet({ rdns: [WALLET_RDNS.zerion, 'io.other'], userAgent: DESKTOP_UA });
+    expect(c.id).toBe('zerion');
+    expect(c.rdns).toBe(WALLET_RDNS.zerion);
+    expect(c.assistedSwitch).toBe(true);
+  });
+
   it('classifies unknown rdns as unknown / no assisted switch', () => {
     const c = classifyWallet({ rdns: 'com.example.wallet', userAgent: DESKTOP_UA });
     expect(c.id).toBe('unknown');

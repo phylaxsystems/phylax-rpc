@@ -18,24 +18,28 @@ import type {
   DetectionResult,
   Eip1193Provider,
   Eip6963ProviderDetail,
+  LooseTransactionRequest,
   ManualInstructions,
   PhylaxRpcConfig,
   ResolvedPhylaxRpcConfig,
   SwitchResult,
-  TransactionRequest,
   WalletClassification,
 } from './types';
 
 export interface DetectArgs {
   provider: Eip1193Provider;
-  transaction: TransactionRequest;
+  transaction: LooseTransactionRequest;
   method?: PreflightMethod;
+  /** Sender to preflight as when `transaction.from` is absent (silent `eth_accounts` otherwise). */
+  account?: string;
 }
 
 export interface SwitchArgs {
   provider: Eip1193Provider;
   wallet: WalletClassification;
-  verifyTransaction?: TransactionRequest;
+  verifyTransaction?: LooseTransactionRequest;
+  /** Sender for the verify probe when `verifyTransaction` omits `from`. */
+  account?: string;
   force?: boolean;
 }
 
@@ -74,6 +78,7 @@ export class PhylaxRpcSwitch {
       provider: args.provider,
       transaction: args.transaction,
       method: args.method,
+      account: args.account,
       config: this.config,
     });
   }
@@ -84,6 +89,7 @@ export class PhylaxRpcSwitch {
       provider: args.provider,
       wallet: args.wallet,
       verifyTransaction: args.verifyTransaction,
+      account: args.account,
       force: args.force,
       config: this.config,
     });

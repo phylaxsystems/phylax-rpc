@@ -123,7 +123,8 @@ export function supportsAssistedSwitch(id: WalletId, platform: WalletPlatform): 
 }
 
 export interface ClassifyInput {
-  rdns?: string;
+  /** A single `rdns`, or wagmi's `readonly string[]` — the first entry is used. */
+  rdns?: string | readonly string[];
   name?: string;
   provider?: Eip1193Provider;
   /** Defaults to `navigator.userAgent` when available. */
@@ -142,16 +143,19 @@ export function classifyWallet(input: ClassifyInput = {}): WalletClassification 
     (typeof navigator !== 'undefined' ? navigator.userAgent : '') ??
     '';
 
-  const id: WalletId = input.rdns
-    ? (RDNS_TO_ID[input.rdns] ?? idFromProviderFlags(input.provider))
+  // wagmi connectors may carry several rdns values; classify on the first.
+  const rdns = typeof input.rdns === 'string' ? input.rdns : input.rdns?.[0];
+
+  const id: WalletId = rdns
+    ? (RDNS_TO_ID[rdns] ?? idFromProviderFlags(input.provider))
     : idFromProviderFlags(input.provider);
 
   const platform =
-    input.platform ?? detectPlatform(id, userAgent, input.rdns != null);
+    input.platform ?? detectPlatform(id, userAgent, rdns != null);
 
   return {
     id,
-    rdns: input.rdns,
+    rdns,
     name: input.name,
     platform,
     assistedSwitch: supportsAssistedSwitch(id, platform),
