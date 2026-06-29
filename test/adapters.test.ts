@@ -35,6 +35,21 @@ describe('wagmi: connectedWallet', () => {
     const connector: ConnectorLike = { getProvider: async () => null };
     expect(await connectedWallet({ connector })).toBeNull();
   });
+
+  it("accepts a connector whose rdns is an array (wagmi's shape)", async () => {
+    const provider = new MockProvider();
+    const connector: ConnectorLike = {
+      id: 'io.rabby',
+      name: 'Rabby Wallet',
+      rdns: ['io.rabby'],
+      getProvider: async () => provider,
+    };
+
+    const result = await connectedWallet({ address: '0xabc', connector }, DESKTOP_UA);
+
+    expect(result!.wallet.id).toBe('rabby');
+    expect(result!.wallet.rdns).toBe('io.rabby');
+  });
 });
 
 describe('viem: providerFromWalletClient', () => {

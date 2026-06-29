@@ -63,6 +63,21 @@ describe('normalizeTransaction', () => {
     const out = normalizeTransaction({ from: '0xABC', to: '0xDEF', data: '0xdeadbeef' });
     expect(out).toEqual({ from: '0xABC', to: '0xDEF', data: '0xdeadbeef' });
   });
+
+  it('drops null fields (viem/ethers type to/from/value/data as `… | null`)', () => {
+    const out = normalizeTransaction({
+      from: null,
+      to: '0x' + '22'.repeat(20),
+      data: null,
+      value: null,
+      nonce: 7,
+    });
+    expect(out.from).toBeUndefined();
+    expect(out.data).toBeUndefined();
+    expect(out.value).toBeUndefined();
+    expect(out.to).toBe('0x' + '22'.repeat(20));
+    expect(out.nonce).toBe('0x7');
+  });
 });
 
 describe('detectOffPhylax', () => {
@@ -150,6 +165,21 @@ describe('detectOffPhylax', () => {
     const sent = (provider.callsTo('eth_estimateGas')[0]!.params as [Record<string, unknown>])[0];
     expect(sent.from).toBe(account);
     expect(sent.value).toBe('0x1');
+  });
+
+  it('treats a null `from` as absent and resolves via silent eth_accounts', async () => {
+    const account = '0x' + '55'.repeat(20);
+    const provider = new MockProvider()
+      .setHandlers('eth_accounts', () => [account])
+      .setHandlers('eth_estimateGas', () => '0x5208');
+    const result = await detectOffPhylax({
+      provider,
+      transaction: { from: null, to: '0x' + '22'.repeat(20) },
+      config,
+    });
+    expect(result.status).toBe('on-phylax');
+    const sent = (provider.callsTo('eth_estimateGas')[0]!.params as [Record<string, unknown>])[0];
+    expect(sent.from).toBe(account);
   });
 
   it('prefers the explicit `account` option over eth_accounts', async () => {
