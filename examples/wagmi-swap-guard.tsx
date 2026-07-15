@@ -30,13 +30,12 @@ export function SwapGuard({ to, data }: { to: `0x${string}`; data: `0x${string}`
 
   const [manual, setManual] = useState(false);
   const [status, setStatus] = useState<string>('');
+  const transaction = { to, data, value: 1_000_000_000_000_000_000n };
 
   async function guardedSwap() {
     setManual(false);
 
     // Loose tx: bigint value, no `from`. Detection normalizes and fills the sender.
-    const transaction = { to, data, value: 1_000_000_000_000_000_000n };
-
     const detection = await detect({ transaction });
     if (!detection.offPhylax) {
       setStatus(detection.status); // on-phylax / reverted / inconclusive
@@ -64,6 +63,9 @@ export function SwapGuard({ to, data }: { to: `0x${string}`; data: `0x${string}`
         onClose={() => setManual(false)}
         walletName={connected?.wallet.name}
         rpcUrl={PHYLAX.rpcUrl}
+        verifyConnection={async () =>
+          (await detect({ transaction })).status === 'on-phylax'
+        }
       />
     </>
   );
