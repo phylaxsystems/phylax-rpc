@@ -13,6 +13,12 @@ export default defineConfig({
   clean: true,
   treeshake: true,
   sourcemap: true,
+  // Inline guide artwork so ManualAddModal remains self-contained when consumers
+  // import the built package from a different asset base URL.
+  loader: {
+    '.png': 'dataurl',
+    '.svg': 'dataurl',
+  },
   // React stays a peer dependency; never bundle it.
   external: ['react'],
 });
