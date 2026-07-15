@@ -126,10 +126,15 @@ import { ManualAddModal } from 'phylax-rpc/react';
   onClose={() => setOpen(false)}
   walletName="Rabby"
   rpcUrl="https://rpc.phylax.systems"
+  verifyConnection={async () =>
+    (await detect({ transaction })).status === 'on-phylax'
+  }
 />
 ```
 
-> Currently a **dummy** placeholder — it renders the dialog chrome but not the per-wallet step content yet.
+The modal uses a shared, Phylax-branded wallet-guide shell with wallet-specific walkthroughs. Rabby includes a complete five-step visual guide; unsupported wallets fall back to copyable manual RPC details. It follows an explicit host `data-theme`/`.dark` theme when present, otherwise the system color-scheme preference, with dark as the fallback.
+
+Wallet APIs do not expose their private configured RPC URL. Pass a silent, wallet-backed `verifyConnection` probe—normally the hook’s `detect` call for the protected transaction—to verify routing. The modal runs it automatically on the final step, every three seconds while that step remains visible, and whenever the window regains focus; while verification is checking or disconnected, Done remains disabled.
 
 ## web3-onboard
 
