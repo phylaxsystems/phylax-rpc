@@ -33,20 +33,26 @@ const phylax = new PhylaxRpcSwitch({
 // 1. Discover wallets (EIP-6963) and classify the connected one.
 const providers = await phylax.discoverProviders();
 const wallet = phylax.classifyDetail(providers[0]);
+const provider = providers[0].provider;
+
+// Silent, transaction-free routing check. This never requests account access.
+if (await phylax.isConnectedToPhylax(provider)) {
+  // The wallet is already using rpc.phylax.systems.
+}
 
 // 2. Detect whether the user is off Phylax, using the *exact* tx they're about to send.
 //    `transaction` is loose: bigint/decimal `value`, and `from` may be omitted (it's
 //    resolved via a silent `eth_accounts`). Do NOT pre-fill `gas` — wallets skip
 //    estimateGas if you do, and the signal never surfaces.
-const detection = await phylax.detect({ provider: providers[0].provider, transaction });
+const detection = await phylax.detect({ provider, transaction });
 
 if (detection.offPhylax) {
   // 3. Offer the switch. Assisted only on Zerion ext / MetaMask Mobile in-app;
   //    everywhere else `outcome` is 'unsupported' and you render your manual modal.
   const result = await phylax.switch({
-    provider: providers[0].provider,
+    provider,
     wallet,
-    verifyTransaction: transaction, // mandatory verify-activation probe
+    verifyTransaction: transaction, // compatibility probe for older RPC deployments
   });
 
   if (result.manualFallback) {
@@ -82,9 +88,21 @@ Design rules baked in (from the spike's wallet-source review):
 await phylax.detect({ provider, transaction: { to, data, value: 10n ** 18n } });
 ```
 
+### Check the current RPC
+
+Use the standalone helper when a dApp only needs to know whether its wallet provider is currently routed through Phylax:
+
+```ts
+import { isConnectedToPhylax } from 'phylax-rpc';
+
+const connected = await isConnectedToPhylax(provider);
+```
+
+The check is silent and does not need a transaction or connected account. It resolves to `false` when the wallet is on another RPC or the provider cannot complete the check.
+
 ## How the switch works
 
-`wallet_addEthereumChain(0x1, phylax)` → `wallet_switchEthereumChain` → **mandatory verify-activation probe** (re-run the preflight; only `on-phylax` counts as activated).
+The switch flow checks routing first, then runs `wallet_addEthereumChain(0x1, phylax)` → `wallet_switchEthereumChain`, then checks routing again. Already-connected wallets skip onboarding. Callers can still supply `verifyTransaction` as a compatibility probe for older RPC deployments.
 
 Several wallets accept the add/switch and then silently ignore the submitted URL, so the probe is not optional. Per the spike, the assisted path is **only** enabled where wallet source confirms activation:
 
@@ -126,15 +144,13 @@ import { ManualAddModal } from 'phylax-rpc/react';
   onClose={() => setOpen(false)}
   walletName="Rabby"
   rpcUrl="https://rpc.phylax.systems"
-  verifyConnection={async () =>
-    (await detect({ transaction })).status === 'on-phylax'
-  }
+  verifyConnection={() => phylax.isConnectedToPhylax(provider)}
 />
 ```
 
 The modal uses a shared, Phylax-branded wallet-guide shell with wallet-specific walkthroughs. Rabby includes a complete five-step visual guide; unsupported wallets fall back to copyable manual RPC details. It follows an explicit host `data-theme`/`.dark` theme when present, otherwise the system color-scheme preference, with dark as the fallback.
 
-Wallet APIs do not expose their private configured RPC URL. Pass a silent, wallet-backed `verifyConnection` probe—normally the hook’s `detect` call for the protected transaction—to verify routing. The modal runs it automatically on the final step, every three seconds while that step remains visible, and whenever the window regains focus; while verification is checking or disconnected, Done remains disabled.
+Wallet APIs do not expose their private configured RPC URL. Pass the public, silent `isConnectedToPhylax` check as `verifyConnection`. The modal runs it as soon as it opens, every three seconds while visible, and whenever the window regains focus. If the wallet is already connected, the guide shows a green confirmation state instead of the setup steps.
 
 ## web3-onboard
 
@@ -166,8 +182,10 @@ Or pass the account straight to the React hook and skip discovery entirely:
 
 ```tsx
 const account = useAccount();
-const { detect, attemptSwitch } = usePhylaxRpcSwitch({ rpcUrl }, account);
-// detect/attemptSwitch resolve the connected provider + classification automatically.
+const { detect, attemptSwitch, isConnectedToPhylax } =
+  usePhylaxRpcSwitch({ rpcUrl }, account);
+// All three functions resolve the connected provider automatically.
+await isConnectedToPhylax();
 await detect({ transaction });
 ```
 
@@ -190,6 +208,7 @@ A full integration is in [`examples/wagmi-swap-guard.tsx`](examples/wagmi-swap-g
 | Export | Purpose |
 |---|---|
 | `PhylaxRpcSwitch` | Orchestrator bundling everything below behind one config. |
+| `isConnectedToPhylax` | Silent, transaction-free check for current wallet routing. |
 | `discoverProviders` | EIP-6963 provider discovery. |
 | `classifyWallet` / `classifyDetail` | Resolve `rdns`/flags → `{ id, platform, assistedSwitch }`. |
 | `detectOffPhylax` | Preflight-as-detection probe (accepts a `LooseTransactionRequest`). |

@@ -26,7 +26,8 @@ export function SwapGuard({ to, data }: { to: `0x${string}`; data: `0x${string}`
   const account = useAccount();
   // Pass `account` so detect/attemptSwitch resolve the *connected* provider — no
   // discoverProviders(), works for WalletConnect/Coinbase/embedded connectors too.
-  const { detect, attemptSwitch, connected } = usePhylaxRpcSwitch(PHYLAX, account);
+  const { detect, attemptSwitch, connected, isConnectedToPhylax } =
+    usePhylaxRpcSwitch(PHYLAX, account);
 
   const [manual, setManual] = useState(false);
   const [status, setStatus] = useState<string>('');
@@ -63,9 +64,7 @@ export function SwapGuard({ to, data }: { to: `0x${string}`; data: `0x${string}`
         onClose={() => setManual(false)}
         walletName={connected?.wallet.name}
         rpcUrl={PHYLAX.rpcUrl}
-        verifyConnection={async () =>
-          (await detect({ transaction })).status === 'on-phylax'
-        }
+        verifyConnection={isConnectedToPhylax}
       />
     </>
   );

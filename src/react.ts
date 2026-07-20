@@ -44,6 +44,11 @@ export interface HookSwitchArgs {
   force?: boolean;
 }
 
+export interface HookConnectionArgs {
+  /** Optional wallet-backed provider. Resolved from the hook's wagmi account when omitted. */
+  provider?: Eip1193Provider;
+}
+
 export interface UsePhylaxRpcSwitchResult {
   /** The underlying headless client. */
   client: PhylaxRpcSwitch;
@@ -58,6 +63,12 @@ export interface UsePhylaxRpcSwitchResult {
   connected?: ConnectedWallet;
   /** Re-run EIP-6963 discovery. */
   refresh: (options?: DiscoverOptions) => Promise<Eip6963ProviderDetail[]>;
+  /** Silently check whether the connected wallet is routing through Phylax. */
+  isConnectedToPhylax: (args?: HookConnectionArgs) => Promise<boolean>;
+  /** Result of the most recent routing check. `undefined` before the first check. */
+  connectedToPhylax?: boolean;
+  /** `true` while a routing check is in flight. */
+  checkingConnection: boolean;
   /** Run the off-Phylax detection probe; also stored on `detection`. */
   detect: (args: HookDetectArgs) => Promise<DetectionResult>;
   /** Attempt the assisted switch; also stored on `switchResult`. */
@@ -97,6 +108,8 @@ export function usePhylaxRpcSwitch(
   const [providers, setProviders] = useState<Eip6963ProviderDetail[]>([]);
   const [discovering, setDiscovering] = useState(false);
   const [connected, setConnected] = useState<ConnectedWallet | undefined>();
+  const [connectedToPhylax, setConnectedToPhylax] = useState<boolean | undefined>();
+  const [checkingConnection, setCheckingConnection] = useState(false);
   const [detection, setDetection] = useState<DetectionResult | undefined>();
   const [switchResult, setSwitchResult] = useState<SwitchResult | undefined>();
 
@@ -125,6 +138,28 @@ export function usePhylaxRpcSwitch(
       setDiscovering(false);
     }
   }, []);
+
+  const isConnectedToPhylax = useCallback(
+    async (args: HookConnectionArgs = {}) => {
+      const provider = args.provider ?? (await resolveConnected())?.provider;
+      if (!provider) {
+        throw new Error(
+          'usePhylaxRpcSwitch.isConnectedToPhylax: no provider, pass `args.provider`, or ' +
+            'pass the wagmi `account` to the hook so the connected provider can be resolved.',
+        );
+      }
+
+      setCheckingConnection(true);
+      try {
+        const result = await clientRef.current.isConnectedToPhylax(provider);
+        setConnectedToPhylax(result);
+        return result;
+      } finally {
+        setCheckingConnection(false);
+      }
+    },
+    [resolveConnected],
+  );
 
   const detect = useCallback(
     async (args: HookDetectArgs) => {
@@ -169,6 +204,7 @@ export function usePhylaxRpcSwitch(
         force: args.force,
       });
       setSwitchResult(result);
+      setConnectedToPhylax(result.outcome === 'activated');
       return result;
     },
     [resolveConnected],
@@ -180,6 +216,9 @@ export function usePhylaxRpcSwitch(
     discovering,
     connected,
     refresh,
+    isConnectedToPhylax,
+    connectedToPhylax,
+    checkingConnection,
     detect,
     attemptSwitch,
     detection,

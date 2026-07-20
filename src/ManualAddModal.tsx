@@ -20,10 +20,9 @@ export interface ManualAddModalProps {
   /** The Phylax RPC URL the user needs to add. Shown for reference. */
   rpcUrl?: string;
   /**
-   * Silent wallet-backed verification invoked on the final step, every three seconds
-   * while it remains visible, and when the window regains focus. Return `true` only
-   * when the connected wallet is confirmed to be routing through Phylax. When supplied,
-   * Done stays disabled until verification succeeds.
+   * Silent wallet-backed verification invoked when the modal opens, every three seconds
+   * while visible, and when the window regains focus. Return `true` only when the
+   * connected wallet is confirmed to be routing through Phylax.
    */
   verifyConnection?: () => boolean | Promise<boolean>;
 }
@@ -870,6 +869,11 @@ const MODAL_STYLES = `
     border-radius: 12px;
   }
 
+  .phylax-wallet-guide__generic-card--connected {
+    background: linear-gradient(145deg, var(--phylax-success-soft), var(--phylax-card) 58%);
+    border-color: var(--phylax-success);
+  }
+
   .phylax-wallet-guide__generic-icon {
     display: grid;
     width: 58px;
@@ -884,6 +888,13 @@ const MODAL_STYLES = `
   .phylax-wallet-guide__generic-icon svg {
     width: 27px;
     height: 27px;
+  }
+
+  .phylax-wallet-guide__generic-icon--connected {
+    color: var(--phylax-success);
+    background: var(--phylax-success-soft);
+    border: 1px solid var(--phylax-success);
+    border-radius: 50%;
   }
 
   .phylax-wallet-guide__generic-card h3 {
@@ -1337,7 +1348,7 @@ export function ManualAddModal({
   useEffect(() => setCopied(false), [step]);
 
   useEffect(() => {
-    if (!open || !lastStep || !hasVerifier) {
+    if (!open || !hasVerifier) {
       verificationRunRef.current += 1;
       verificationPendingRunRef.current = null;
       setVerificationState('idle');
@@ -1357,7 +1368,7 @@ export function ManualAddModal({
       verificationRunRef.current += 1;
       verificationPendingRunRef.current = null;
     };
-  }, [hasVerifier, lastStep, open, runVerification, selectedWallet]);
+  }, [hasVerifier, open, runVerification]);
 
   if (!open) return null;
 
@@ -1510,15 +1521,46 @@ export function ManualAddModal({
               {activeGuide?.name ?? 'Manual setup'}
             </p>
             <h2 id="phylax-manual-add-title">
-              {activeGuide?.heading ?? `Add Phylax to ${wallet}`}
+              {verificationState === 'connected'
+                ? 'Connected to Phylax'
+                : activeGuide?.heading ?? `Add Phylax to ${wallet}`}
             </h2>
             <p id="phylax-manual-add-description">
-              {activeGuide?.description
-                ?? `${wallet} can’t add the Phylax RPC in one click. Copy the URL below and add it in your wallet’s network settings.`}
+              {verificationState === 'connected'
+                ? 'Your wallet is already routing Ethereum requests through the Phylax RPC.'
+                : activeGuide?.description
+                  ?? `${wallet} can’t add the Phylax RPC in one click. Copy the URL below and add it in your wallet’s network settings.`}
             </p>
           </header>
 
-          {activeGuide && currentStep ? (
+          {verificationState === 'connected' ? (
+            <div className="phylax-wallet-guide__generic">
+              <section
+                className="phylax-wallet-guide__generic-card phylax-wallet-guide__generic-card--connected"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="phylax-wallet-guide__generic-icon phylax-wallet-guide__generic-icon--connected">
+                  <CheckIcon />
+                </span>
+                <h3>Your wallet is ready</h3>
+                <p>No RPC setup is needed. You can close this guide and continue in the dApp.</p>
+                {rpcUrl ? (
+                  <div className="phylax-wallet-guide__connection-endpoint" title={rpcUrl}>
+                    {rpcUrl}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  className="phylax-wallet-guide__action phylax-wallet-guide__action--primary"
+                  onClick={onClose}
+                >
+                  Done
+                  <CheckIcon />
+                </button>
+              </section>
+            </div>
+          ) : activeGuide && currentStep ? (
             <>
               <nav
                 className="phylax-wallet-guide__stepper"
@@ -1565,9 +1607,7 @@ export function ManualAddModal({
                   <h3>{currentStep.title}</h3>
                   <p>{currentStep.text}</p>
                   {lastStep ? (
-                    <div
-                      className={`phylax-wallet-guide__connection${verificationState === 'connected' ? ' phylax-wallet-guide__connection--connected' : ''}`}
-                    >
+                    <div className="phylax-wallet-guide__connection">
                       <div
                         className="phylax-wallet-guide__connection-row"
                         role="status"
@@ -1586,7 +1626,7 @@ export function ManualAddModal({
                           {rpcUrl}
                         </div>
                       ) : null}
-                      {hasVerifier && verificationState !== 'connected' ? (
+                      {hasVerifier ? (
                         <button
                           type="button"
                           className="phylax-wallet-guide__connection-retry"
