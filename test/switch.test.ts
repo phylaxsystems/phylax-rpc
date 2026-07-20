@@ -8,6 +8,8 @@ import { errorStringRevert, MockProvider, userRejection } from './helpers';
 
 const config = resolveConfig({ rpcUrl: 'https://rpc.phylax.example' });
 const tx: TransactionRequest = { from: '0x' + '11'.repeat(20), to: '0x' + '22'.repeat(20) };
+const TRUE_WORD = '0x' + '0'.repeat(63) + '1';
+const FALSE_WORD = '0x' + '0'.repeat(64);
 
 const zerionExt: WalletClassification = classifyWallet({
   rdns: WALLET_RDNS.zerion,
@@ -20,6 +22,8 @@ const mmExt: WalletClassification = classifyWallet({
 
 function assistedProvider(verifyBehaviour: () => unknown): MockProvider {
   return new MockProvider()
+    .setHandlers('eth_chainId', () => '0x1')
+    .setHandlers('eth_call', () => FALSE_WORD)
     .setHandlers('wallet_addEthereumChain', () => null)
     .setHandlers('wallet_switchEthereumChain', () => null)
     .setHandlers('eth_estimateGas', verifyBehaviour);
@@ -31,7 +35,37 @@ describe('attemptSwitch', () => {
     const result = await attemptSwitch({ provider, wallet: mmExt, config, verifyTransaction: tx });
     expect(result.outcome).toBe('unsupported');
     expect(result.manualFallback).toBe(true);
-    expect(provider.calls).toHaveLength(0); // no requests issued
+    expect(provider.callsTo('wallet_addEthereumChain')).toHaveLength(0);
+    expect(provider.callsTo('wallet_switchEthereumChain')).toHaveLength(0);
+  });
+
+  it('skips onboarding when the wallet is already routed through Phylax', async () => {
+    const provider = new MockProvider()
+      .setHandlers('eth_chainId', () => '0x1')
+      .setHandlers('eth_call', () => TRUE_WORD);
+
+    const result = await attemptSwitch({ provider, wallet: mmExt, config });
+
+    expect(result).toMatchObject({
+      outcome: 'activated',
+      added: false,
+      switched: false,
+      manualFallback: false,
+    });
+    expect(provider.callsTo('wallet_addEthereumChain')).toHaveLength(0);
+  });
+
+  it('uses the routing check to verify activation without a transaction', async () => {
+    const provider = new MockProvider()
+      .setHandlers('eth_chainId', () => '0x1')
+      .setHandlers('eth_call', () => FALSE_WORD, () => TRUE_WORD)
+      .setHandlers('wallet_addEthereumChain', () => null)
+      .setHandlers('wallet_switchEthereumChain', () => null);
+
+    const result = await attemptSwitch({ provider, wallet: zerionExt, config });
+
+    expect(result.outcome).toBe('activated');
+    expect(result.manualFallback).toBe(false);
   });
 
   it('activates when the verify probe confirms the RPC is live', async () => {
@@ -95,7 +129,7 @@ describe('attemptSwitch', () => {
     expect(result.switched).toBe(true);
   });
 
-  it('cannot confirm activation without a verify transaction', async () => {
+  it('cannot confirm activation when both routing checks fail and no compatibility probe exists', async () => {
     const provider = new MockProvider()
       .setHandlers('wallet_addEthereumChain', () => null)
       .setHandlers('wallet_switchEthereumChain', () => null);

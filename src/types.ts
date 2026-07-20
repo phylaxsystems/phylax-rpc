@@ -177,7 +177,7 @@ export interface DetectionResult {
 }
 
 export type SwitchOutcome =
-  /** Assisted path ran and the verify-activation probe confirmed the RPC is now active. */
+  /** The wallet was already routed through Phylax, or activation was confirmed after switching. */
   | 'activated'
   /** Add/switch ran but activation could not be confirmed (wallet may have ignored the URL). */
   | 'unverified'
@@ -192,7 +192,7 @@ export interface SwitchResult {
   outcome: SwitchOutcome;
   added: boolean;
   switched: boolean;
-  /** Result of the mandatory verify-activation probe, when a probe transaction was supplied. */
+  /** Result of the compatibility transaction probe, when one was needed and supplied. */
   verification?: DetectionResult;
   /** `true` when the caller should fall back to the manual-add modal. */
   manualFallback: boolean;

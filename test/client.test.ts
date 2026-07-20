@@ -57,6 +57,14 @@ describe('PhylaxRpcSwitch', () => {
     expect(result.offPhylax).toBe(true);
   });
 
+  it('exposes the silent Phylax routing check', async () => {
+    const provider = new MockProvider()
+      .setHandlers('eth_chainId', () => '0x1')
+      .setHandlers('eth_call', () => '0x' + '0'.repeat(63) + '1');
+
+    expect(await client.isConnectedToPhylax(provider)).toBe(true);
+  });
+
   it('delegates classify', () => {
     expect(client.classify({ rdns: WALLET_RDNS.zerion, userAgent: 'Macintosh Chrome' }).id).toBe('zerion');
   });

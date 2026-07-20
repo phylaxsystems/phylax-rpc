@@ -19,6 +19,11 @@ export {
 } from './eip1193';
 
 export {
+  isConnectedToPhylax,
+  PHYLAX_ROUTING_SIGNAL_V1,
+} from './connection';
+
+export {
   buildPreflightParams,
   detectOffPhylax,
   normalizeTransaction,

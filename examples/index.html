@@ -53,12 +53,16 @@
       import { createRoot } from 'react-dom/client';
       // The *real* built component from the package's /react entry.
       import { ManualAddModal } from '../dist/react.js';
+      import { isConnectedToPhylax } from '../dist/index.js';
 
       const RPC_URL = 'https://rpc.phylax.systems';
 
       function Demo() {
         const [open, setOpen] = useState(false);
         const [wallet, setWallet] = useState(undefined);
+
+        const verifyConnection = () =>
+          window.ethereum ? isConnectedToPhylax(window.ethereum) : false;
 
         // Mimics the dApp's "Add Phylax" button: in real usage you'd call
         // attemptSwitch() first; for an unsupported wallet it returns
@@ -103,6 +107,7 @@
             onClose: () => setOpen(false),
             walletName: wallet,
             rpcUrl: RPC_URL,
+            verifyConnection,
           }),
         );
       }

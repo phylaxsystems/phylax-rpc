@@ -4,6 +4,7 @@ import {
   manualInstructions,
   resolveConfig,
 } from './config';
+import { isConnectedToPhylax } from './connection';
 import { detectOffPhylax, type PreflightMethod } from './detect';
 import { attemptSwitch } from './switch';
 import { toWeb3OnboardChain, type Web3OnboardChain } from './web3onboard';
@@ -46,8 +47,8 @@ export interface SwitchArgs {
 /**
  * Headless orchestrator for the Phylax RPC-switch flow.
  *
- * Bundles the three pieces from the spike — EIP-6963 wallet detection, credible-require
- * off-Phylax detection, and the assisted add/switch/verify path — behind one config.
+ * Bundles EIP-6963 wallet detection, silent RPC routing checks, credible-require
+ * off-Phylax detection, and the assisted add/switch/verify path behind one config.
  * Carries no UI; dApps render their own prompts and manual-add modal.
  */
 export class PhylaxRpcSwitch {
@@ -83,7 +84,12 @@ export class PhylaxRpcSwitch {
     });
   }
 
-  /** Attempt the assisted RPC switch (add → switch → mandatory verify probe). */
+  /** Silently check whether the wallet provider is currently routing through Phylax. */
+  isConnectedToPhylax(provider: Eip1193Provider): Promise<boolean> {
+    return isConnectedToPhylax(provider);
+  }
+
+  /** Attempt the assisted RPC switch, with routing checks before and after activation. */
   switch(args: SwitchArgs): Promise<SwitchResult> {
     return attemptSwitch({
       provider: args.provider,
