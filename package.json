@@ -1,5 +1,5 @@
 {
-  "name": "phylax-rpc",
+  "name": "@phylaxsystems/phylax-rpc",
   "version": "0.1.0",
   "description": "Headless library to detect when a wallet is off the Phylax RPC and help users switch (EIP-6963 detection + credible-require preflight + assisted EIP add/switch/verify).",
   "license": "MIT",
@@ -48,13 +48,17 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "example": "npm run build && python3 -m http.server 8080"
+    "example": "npm run build && python3 -m http.server 8080",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
+    "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
+    "ethers": ">=6",
     "react": ">=17",
-    "wagmi": ">=2",
     "viem": ">=2",
-    "ethers": ">=6"
+    "wagmi": ">=2"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -71,6 +75,8 @@
     }
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.1",
     "@types/react": "^18.3.3",
     "react": "^18.3.1",
     "tsup": "^8.2.4",
