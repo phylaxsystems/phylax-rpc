@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import phylaxLogo from './assets/phylax-logo.svg';
 import rabbyLogo from './assets/rabby/logo.svg';
-import rabbyOpenNetwork from './assets/rabby/Screenshot 2026-07-15 at 16.19.04.png';
-import rabbySettings from './assets/rabby/Screenshot 2026-07-15 at 16.19.12.png';
-import rabbyModifyRpc from './assets/rabby/Screenshot 2026-07-15 at 16.19.20.png';
-import rabbyEnterRpc from './assets/rabby/Screenshot 2026-07-15 at 16.20.07.png';
-import rabbyEnabled from './assets/rabby/Screenshot 2026-07-15 at 16.20.13.png';
+import rabbyOpenNetwork from './assets/rabby/open-network.jpg';
+import rabbySettings from './assets/rabby/settings.jpg';
+import rabbyModifyRpc from './assets/rabby/modify-rpc.jpg';
+import rabbyEnterRpc from './assets/rabby/enter-rpc.jpg';
+import rabbyEnabled from './assets/rabby/enabled.jpg';
 
 export interface ManualAddModalProps {
   /** Whether the modal is visible. */
