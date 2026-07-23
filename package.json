@@ -1,5 +1,5 @@
 {
-  "name": "@phylaxsystems/phylax-rpc",
+  "name": "@phylax-systems/phylax-rpc",
   "version": "0.1.0",
   "description": "Headless library to detect when a wallet is off the Phylax RPC and help users switch (EIP-6963 detection + credible-require preflight + assisted EIP add/switch/verify).",
   "license": "MIT",

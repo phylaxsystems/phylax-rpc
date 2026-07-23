@@ -1,10 +1,10 @@
 /**
  * Advanced / low-level building blocks, deliberately kept off the root entry so the
- * primary API surface (`@phylaxsystems/phylax-rpc`) stays small and its SemVer contract
+ * primary API surface (`@phylax-systems/phylax-rpc`) stays small and its SemVer contract
  * narrow. Import these only when wiring custom flows:
  *
  * ```ts
- * import { extractRevertData, decodeErrorString } from '@phylaxsystems/phylax-rpc/advanced';
+ * import { extractRevertData, decodeErrorString } from '@phylax-systems/phylax-rpc/advanced';
  * ```
  */
 

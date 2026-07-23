@@ -11,7 +11,7 @@ export type { ConnectorLike, ConnectedAccountLike, ConnectedWallet } from './typ
  *
  * ```ts
  * import { useAccount } from 'wagmi';
- * import { connectedWallet } from '@phylaxsystems/phylax-rpc/wagmi';
+ * import { connectedWallet } from '@phylax-systems/phylax-rpc/wagmi';
  *
  * const account = useAccount();
  * const connected = await connectedWallet(account);

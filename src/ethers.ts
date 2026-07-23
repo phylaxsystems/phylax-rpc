@@ -7,7 +7,7 @@ export type { SendProvider } from './types';
  *
  * ```ts
  * import { BrowserProvider } from 'ethers';
- * import { providerFromEthers } from '@phylaxsystems/phylax-rpc/ethers';
+ * import { providerFromEthers } from '@phylax-systems/phylax-rpc/ethers';
  * const provider = providerFromEthers(new BrowserProvider(window.ethereum));
  * ```
  *
