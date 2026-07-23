@@ -95,6 +95,35 @@ describe('attemptSwitch', () => {
     expect(result.manualFallback).toBe(false);
   });
 
+  it('uses the compatibility probe when the routing signal is unavailable', async () => {
+    const nonMainnetConfig = resolveConfig({
+      rpcUrl: 'https://rpc.phylax.example',
+      chainId: 10,
+    });
+    const provider = new MockProvider()
+      .setHandlers('eth_chainId', () => '0xa')
+      .setHandlers(
+        'eth_estimateGas',
+        () => {
+          throw errorStringRevert('assertion failed');
+        },
+        () => '0x5208',
+      )
+      .setHandlers('wallet_addEthereumChain', () => null)
+      .setHandlers('wallet_switchEthereumChain', () => null);
+
+    const result = await attemptSwitch({
+      provider,
+      wallet: zerionExt,
+      config: nonMainnetConfig,
+      verifyTransaction: tx,
+    });
+
+    expect(result.outcome).toBe('activated');
+    expect(result.added).toBe(true);
+    expect(result.switched).toBe(true);
+  });
+
   it('does NOT confirm activation from a bare preflight success (probe not proven protected)', async () => {
     // Preflight passes both before and after — the probe never demonstrated protection, so
     // its success is ambiguous and must not be reported as activation.

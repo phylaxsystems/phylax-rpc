@@ -21,42 +21,40 @@ import type {
 // cast here is inherent to the pattern; it is contained to this function by design.
 const brand = <B>(value: unknown): B => value as B;
 
-const HEX_RE = /^0x[0-9a-fA-F]*$/;
-const HEX_QUANTITY_RE = /^0x(0|[1-9a-f][0-9a-f]*)$/;
+const HEX_RE = /^0x(?:[0-9a-fA-F]{2})*$/;
+const HEX_QUANTITY_RE = /^0x(0|[1-9a-fA-F][0-9a-fA-F]*)$/;
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const RDNS_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
-/** Whether `value` is `0x`-prefixed hex (even or odd length, empty body allowed). */
+/** Whether `value` is `0x`-prefixed whole-byte hex data. */
 export function isHex(value: unknown): value is Hex {
   return typeof value === 'string' && HEX_RE.test(value);
 }
 
-/** Assert `value` is `0x`-prefixed hex with an even number of nibbles (whole bytes). */
+/** Assert `value` is `0x`-prefixed whole-byte hex data. */
 export function asHex(value: unknown): Hex {
-  if (typeof value !== 'string' || !HEX_RE.test(value)) {
-    throw new TypeError(`Expected 0x-prefixed hex, got ${String(value)}`);
-  }
-  if ((value.length - 2) % 2 !== 0) {
-    throw new TypeError(`Expected whole-byte hex (even length), got ${value}`);
+  if (!isHex(value)) {
+    throw new TypeError(`Expected 0x-prefixed whole-byte hex, got ${String(value)}`);
   }
   return brand<Hex>(value);
 }
 
-/**
- * Brand `value` as {@link Hex} when it is `0x`-prefixed hex, else `undefined`. Unlike
- * {@link asHex} this tolerates odd-length blobs, since raw revert `data` pulled off a
- * provider error is not guaranteed to be whole-byte.
- */
+/** Brand `value` as {@link Hex} when it is whole-byte hex, else `undefined`. */
 export function toHex(value: string): Hex | undefined {
-  return HEX_RE.test(value) ? brand<Hex>(value) : undefined;
+  return isHex(value) ? brand<Hex>(value) : undefined;
 }
 
 /** Whether `value` is a canonical hex quantity (`0x0`, or no leading zeros). */
 export function isHexQuantity(value: unknown): value is HexQuantity {
-  return typeof value === 'string' && HEX_QUANTITY_RE.test(value.toLowerCase());
+  return typeof value === 'string' && HEX_QUANTITY_RE.test(value);
 }
 
-/** Brand an already-canonical hex quantity string. */
-export function asHexQuantity(value: string): HexQuantity {
+/** Assert and brand a canonical hex quantity string. */
+export function asHexQuantity(value: unknown): HexQuantity {
+  if (!isHexQuantity(value)) {
+    throw new TypeError(`Expected a canonical hex quantity, got ${String(value)}`);
+  }
   return brand<HexQuantity>(value);
 }
 
@@ -103,19 +101,21 @@ export function asRpcUrl(value: unknown): RpcUrl {
   return brand<RpcUrl>(value);
 }
 
-/** Whether `value` is a non-empty EIP-6963 `rdns` string. */
+/** Whether `value` is a valid reverse-DNS identifier. */
 export function isWalletRdns(value: unknown): value is WalletRdns {
-  return typeof value === 'string' && value.length > 0;
+  if (typeof value !== 'string' || value.length > 253) return false;
+  const labels = value.split('.');
+  return labels.length >= 2 && labels.every((label) => RDNS_LABEL_RE.test(label));
 }
 
-/** Brand a validated non-empty `rdns` string, or `undefined` when absent/invalid. */
+/** Brand a validated reverse-DNS identifier, or `undefined` when absent/invalid. */
 export function asWalletRdns(value: unknown): WalletRdns | undefined {
   return isWalletRdns(value) ? value : undefined;
 }
 
-/** Whether `value` is a non-empty UUID-ish string. */
+/** Whether `value` is an RFC 4122 version 4 UUID, as required by EIP-6963. */
 export function isUuid(value: unknown): value is Uuid {
-  return typeof value === 'string' && value.length > 0;
+  return typeof value === 'string' && UUID_V4_RE.test(value);
 }
 
 /** Assert a non-negative, finite millisecond duration. */

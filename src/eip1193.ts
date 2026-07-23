@@ -1,4 +1,4 @@
-import { toHex } from './brands';
+import { isHex } from './brands';
 import { ERROR_STRING_SELECTOR } from './constants';
 import type { Eip1193Provider, Hex, RpcMethod } from './types';
 
@@ -38,12 +38,12 @@ function knownValues(node: object): unknown[] {
 }
 
 /**
- * Collect every `0x`-prefixed hex string found anywhere in an error object.
+ * Collect `0x`-prefixed hex strings from known provider-error fields.
  *
- * Provider errors nest revert `data` in wildly different places — `error.data`,
+ * Provider errors nest revert `data` in several common places: `error.data`,
  * `error.data.originalError.data`, `error.info.error.data` (ethers v6), `error.cause`, or
- * embedded in a non-enumerable `message` string — so we walk the whole tree, reading known
- * error keys explicitly (to reach non-enumerable ones) in addition to own-enumerable props.
+ * a non-enumerable `message` string. Restricting traversal to those fields prevents unrelated
+ * transaction hashes, addresses, and chain IDs from being classified as revert data.
  */
 export function collectHexStrings(error: unknown): string[] {
   const out: string[] = [];
@@ -51,7 +51,7 @@ export function collectHexStrings(error: unknown): string[] {
   const walk = (node: unknown, depth: number): void => {
     if (node == null || depth > 8) return;
     if (typeof node === 'string') {
-      const matches = node.match(/0x[0-9a-fA-F]+/g);
+      const matches = node.match(/0x[0-9a-fA-F]+(?![0-9A-Za-z])/g);
       if (matches) out.push(...matches);
       return;
     }
@@ -59,9 +59,6 @@ export function collectHexStrings(error: unknown): string[] {
       if (seen.has(node)) return;
       seen.add(node);
       for (const value of knownValues(node)) walk(value, depth + 1);
-      for (const value of Object.values(node as Record<string, unknown>)) {
-        walk(value, depth + 1);
-      }
     }
   };
   walk(error, 0);
@@ -71,17 +68,21 @@ export function collectHexStrings(error: unknown): string[] {
 /**
  * Extract revert `data` from a thrown provider error.
  *
- * Prefers a hex blob carrying the `Error(string)` selector; otherwise returns the
- * longest hex blob found (best-effort). Returns `undefined` if none is present.
+ * Prefers a hex blob carrying the `Error(string)` selector; otherwise returns the longest
+ * value shaped like ABI revert data (a 4-byte selector followed by whole bytes).
  */
 export function extractRevertData(error: unknown): Hex | undefined {
-  const hexes = collectHexStrings(error);
-  if (hexes.length === 0) return undefined;
-  const withSelector = hexes.find((h) =>
-    h.toLowerCase().startsWith(ERROR_STRING_SELECTOR),
+  const candidates = collectHexStrings(error).filter(
+    (value): value is Hex => value.length >= 10 && isHex(value),
   );
-  const chosen = withSelector ?? hexes.slice().sort((a, b) => b.length - a.length)[0];
-  return chosen === undefined ? undefined : toHex(chosen);
+  const withSelector = candidates.find((value) =>
+    value.toLowerCase().startsWith(ERROR_STRING_SELECTOR),
+  );
+  if (withSelector) return withSelector;
+  return candidates.reduce<Hex | undefined>(
+    (longest, value) => (!longest || value.length > longest.length ? value : longest),
+    undefined,
+  );
 }
 
 /** EIP-1193 user-rejection code, and ethers' string alias. */

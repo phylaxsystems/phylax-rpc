@@ -62,8 +62,10 @@ function Guard() {
 ```
 
 The walkthrough screenshots are served by Cloudflare Images. Pass `imageOptions` to
-`ManualAddModal` to request a different size, fit, DPR, quality, or format. The same URL
-builder is available for headless use:
+`ManualAddModal` to request a different size, fit, DPR, quality, or image format. Apps with
+a Content Security Policy must allow `https://imagedelivery.net` in `img-src`. Pass the
+page's nonce through `styleNonce` when `style-src` requires one. The same URL builder is
+available for headless use (including Cloudflare's JSON metadata format):
 
 ```ts
 import { buildCloudflareImageUrl } from '@phylaxsystems/phylax-rpc';

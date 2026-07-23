@@ -42,7 +42,9 @@ function toValidDetail(detail: unknown): Eip6963ProviderDetail | undefined {
   if (
     !isUuid(uuid) ||
     typeof name !== 'string' ||
+    name.length === 0 ||
     typeof icon !== 'string' ||
+    !icon.startsWith('data:image/') ||
     !isWalletRdns(rdns) ||
     !isEip1193Provider(provider)
   ) {
@@ -168,9 +170,7 @@ export function supportsAssistedSwitch(id: WalletId, platform: WalletPlatform): 
  */
 export function classifyWallet(input: ClassifyInput = {}): WalletClassification {
   const userAgent =
-    input.userAgent ??
-    (typeof navigator !== 'undefined' ? navigator.userAgent : '') ??
-    '';
+    input.userAgent ?? (typeof navigator !== 'undefined' ? navigator.userAgent : '');
 
   // wagmi connectors may carry several rdns values; classify on the first.
   const rawRdns = typeof input.rdns === 'string' ? input.rdns : input.rdns?.[0];

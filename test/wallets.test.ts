@@ -94,16 +94,26 @@ describe('discoverProviders', () => {
     const announce = (detail: unknown) =>
       bus.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail }));
     const valid = (uuid: string, rdns: string) => ({
-      info: { uuid, name: rdns, icon: 'data:,', rdns },
+      info: { uuid, name: rdns, icon: 'data:image/svg+xml,<svg/>', rdns },
       provider: new MockProvider(),
     });
 
     bus.addEventListener('eip6963:requestProvider', () => {
-      announce(valid('uuid-mm', WALLET_RDNS.metamask));
-      announce(valid('uuid-mm', WALLET_RDNS.metamask)); // duplicate uuid
-      announce(valid('uuid-rabby', WALLET_RDNS.rabby));
+      const metamaskUuid = '00000000-0000-4000-8000-000000000001';
+      announce(valid(metamaskUuid, WALLET_RDNS.metamask));
+      announce(valid(metamaskUuid, WALLET_RDNS.metamask)); // duplicate uuid
+      announce(valid('00000000-0000-4000-8000-000000000002', WALLET_RDNS.rabby));
       // Malformed announcements must be rejected, not stored:
       announce({ info: { uuid: 'uuid-bad', name: 'Bad', icon: 'x', rdns: 'io.bad' } }); // no provider
+      announce({
+        info: {
+          uuid: '00000000-0000-4000-8000-000000000003',
+          name: 'Remote icon',
+          icon: 'https://example.com/icon.svg',
+          rdns: 'io.remote',
+        },
+        provider: new MockProvider(),
+      });
       announce({ info: { uuid: '', name: 'Empty', icon: 'x', rdns: 'io.empty' }, provider: {} });
     });
 

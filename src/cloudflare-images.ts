@@ -1,27 +1,19 @@
-export type CloudflareImageFit =
-  | 'scale-down'
-  | 'contain'
-  | 'cover'
-  | 'crop'
-  | 'aspect-crop'
-  | 'pad'
-  | 'squeeze'
-  | 'scale-up';
+const IMAGE_FITS = [
+  'scale-down',
+  'contain',
+  'cover',
+  'crop',
+  'aspect-crop',
+  'pad',
+  'squeeze',
+  'scale-up',
+] as const;
+const IMAGE_FORMATS = ['auto', 'avif', 'webp', 'jpeg', 'baseline-jpeg', 'json'] as const;
+const QUALITY_PRESETS = ['high', 'medium-high', 'medium-low', 'low'] as const;
 
-export type CloudflareImageFormat =
-  | 'auto'
-  | 'avif'
-  | 'webp'
-  | 'jpeg'
-  | 'baseline-jpeg'
-  | 'json';
-
-export type CloudflareImageQuality =
-  | number
-  | 'high'
-  | 'medium-high'
-  | 'medium-low'
-  | 'low';
+export type CloudflareImageFit = (typeof IMAGE_FITS)[number];
+export type CloudflareImageFormat = (typeof IMAGE_FORMATS)[number];
+export type CloudflareImageQuality = number | (typeof QUALITY_PRESETS)[number];
 
 /** Flexible-variant options supported by the SDK's Cloudflare Images URL builder. */
 export interface CloudflareImageOptions {
@@ -38,6 +30,10 @@ export interface CloudflareImageOptions {
   /** Requested output format. `auto` negotiates from the request's `Accept` header. */
   readonly format?: CloudflareImageFormat;
 }
+
+const IMAGE_FIT_SET: ReadonlySet<CloudflareImageFit> = new Set(IMAGE_FITS);
+const IMAGE_FORMAT_SET: ReadonlySet<CloudflareImageFormat> = new Set(IMAGE_FORMATS);
+const QUALITY_PRESET_SET: ReadonlySet<(typeof QUALITY_PRESETS)[number]> = new Set(QUALITY_PRESETS);
 
 const positiveInteger = (name: string, value: number): string => {
   if (!Number.isInteger(value) || value <= 0) {
@@ -64,6 +60,9 @@ export function buildCloudflareImageUrl(
   if (url.protocol !== 'https:' || url.hostname !== 'imagedelivery.net') {
     throw new TypeError('deliveryUrl must be an https://imagedelivery.net URL');
   }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new TypeError('deliveryUrl must not include credentials, a query, or a fragment');
+  }
 
   const segments = url.pathname.split('/').filter(Boolean);
   if (segments.length !== 3) {
@@ -77,7 +76,12 @@ export function buildCloudflareImageUrl(
   if (options.height !== undefined) {
     transformations.push(`height=${positiveInteger('height', options.height)}`);
   }
-  if (options.fit !== undefined) transformations.push(`fit=${options.fit}`);
+  if (options.fit !== undefined) {
+    if (!IMAGE_FIT_SET.has(options.fit)) {
+      throw new TypeError(`fit must be a supported Cloudflare Images fit, got ${options.fit}`);
+    }
+    transformations.push(`fit=${options.fit}`);
+  }
   if (options.dpr !== undefined) {
     if (!Number.isFinite(options.dpr) || options.dpr <= 0 || options.dpr > 2) {
       throw new TypeError(`dpr must be greater than 0 and at most 2, got ${options.dpr}`);
@@ -89,10 +93,17 @@ export function buildCloudflareImageUrl(
       if (!Number.isInteger(options.quality) || options.quality < 1 || options.quality > 100) {
         throw new TypeError(`quality must be an integer in [1, 100], got ${options.quality}`);
       }
+    } else if (!QUALITY_PRESET_SET.has(options.quality)) {
+      throw new TypeError(`quality must be a supported preset, got ${options.quality}`);
     }
     transformations.push(`quality=${options.quality}`);
   }
-  if (options.format !== undefined) transformations.push(`format=${options.format}`);
+  if (options.format !== undefined) {
+    if (!IMAGE_FORMAT_SET.has(options.format)) {
+      throw new TypeError(`format must be a supported Cloudflare Images format, got ${options.format}`);
+    }
+    transformations.push(`format=${options.format}`);
+  }
 
   if (transformations.length === 0) return deliveryUrl;
 

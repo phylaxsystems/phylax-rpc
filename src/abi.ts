@@ -1,3 +1,4 @@
+import { isHex } from './brands';
 import { ERROR_STRING_SELECTOR } from './constants';
 import { getSelector, hexToUtf8, normalizeHex } from './hex';
 
@@ -15,10 +16,10 @@ export function isErrorStringRevert(data: string): boolean {
  * truncation), and valid UTF-8.
  */
 export function decodeErrorString(data: string): string | undefined {
-  const hex = normalizeHex(data).slice(2).toLowerCase();
+  const normalized = normalizeHex(data);
+  if (!isHex(normalized)) return undefined;
+  const hex = normalized.slice(2).toLowerCase();
   if (!hex.startsWith(ERROR_STRING_SELECTOR.slice(2))) return undefined;
-  // Whole-byte payloads only — an odd nibble count is malformed.
-  if (hex.length % 2 !== 0) return undefined;
 
   const body = hex.slice(8);
   // Need at least offset (64) + length (64) words.

@@ -52,7 +52,6 @@ interface WalletGuide {
   id: string;
   aliases: readonly string[];
   name: string;
-  navDetail: string;
   logo: string;
   accent: string;
   accentStrong: string;
@@ -74,7 +73,6 @@ const WALLET_GUIDES: readonly WalletGuide[] = [
     id: 'rabby',
     aliases: ['rabby', 'rabby wallet'],
     name: 'Rabby Wallet',
-    navDetail: '5 guided steps',
     logo: rabbyLogo,
     accent: '#7488f6',
     accentStrong: '#657af0',
@@ -1261,6 +1259,28 @@ function ConnectionStatusIcon({ state }: { state: ConnectionVerificationState })
 // `<head>` rather than rendering its own, so N modals inject the CSS once, not N times.
 let sharedStyleEl: HTMLStyleElement | null = null;
 let sharedStyleRefCount = 0;
+let bodyScrollLockRefCount = 0;
+let bodyOverflowBeforeLock = '';
+const openModalStack: Array<{
+  getDialog: () => HTMLElement | null;
+  restoreFocus: HTMLElement | null;
+}> = [];
+
+function acquireBodyScrollLock(): void {
+  if (bodyScrollLockRefCount === 0) {
+    bodyOverflowBeforeLock = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  bodyScrollLockRefCount += 1;
+}
+
+function releaseBodyScrollLock(): void {
+  bodyScrollLockRefCount = Math.max(0, bodyScrollLockRefCount - 1);
+  if (bodyScrollLockRefCount === 0) {
+    document.body.style.overflow = bodyOverflowBeforeLock;
+    bodyOverflowBeforeLock = '';
+  }
+}
 
 /**
  * Inject the modal stylesheet once for the lifetime of any mounted instance. A CSP `nonce`
@@ -1275,6 +1295,13 @@ function useSharedStylesheet(active: boolean, nonce?: string): void {
       if (nonce) sharedStyleEl.setAttribute('nonce', nonce);
       sharedStyleEl.textContent = MODAL_STYLES;
       document.head.appendChild(sharedStyleEl);
+    } else if (nonce && sharedStyleEl.nonce !== nonce) {
+      const replacement = document.createElement('style');
+      replacement.setAttribute('data-phylax-wallet-guide', '');
+      replacement.setAttribute('nonce', nonce);
+      replacement.textContent = MODAL_STYLES;
+      sharedStyleEl.replaceWith(replacement);
+      sharedStyleEl = replacement;
     }
     sharedStyleRefCount += 1;
     return () => {
@@ -1317,7 +1344,6 @@ export function ManualAddModal({
 }: ManualAddModalProps): ReactElement | null {
   const dialogRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
-  const openerRef = useRef<HTMLElement | null>(null);
   const instanceIdRef = useRef<string>('');
   if (!instanceIdRef.current) instanceIdRef.current = nextInstanceId();
   const titleId = `${instanceIdRef.current}-title`;
@@ -1331,6 +1357,9 @@ export function ManualAddModal({
   const [verificationState, setVerificationState] = useState<ConnectionVerificationState>('idle');
   const activeGuide = WALLET_GUIDES.find((guide) => guide.id === selectedWallet);
   const currentStep = activeGuide?.steps[step];
+  const currentImageUrl = currentStep
+    ? buildCloudflareImageUrl(currentStep.image, imageOptions)
+    : undefined;
   const lastStep = activeGuide ? step === activeGuide.steps.length - 1 : false;
   const hasVerifier = typeof verifyConnection === 'function';
 
@@ -1385,9 +1414,14 @@ export function ManualAddModal({
 
     // Remember the element that had focus so it can be restored on close.
     const opener = document.activeElement;
-    openerRef.current = opener instanceof HTMLElement ? opener : null;
+    const stackEntry = {
+      getDialog: () => dialogRef.current,
+      restoreFocus: opener instanceof HTMLElement ? opener : null,
+    };
+    openModalStack.push(stackEntry);
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (openModalStack[openModalStack.length - 1] !== stackEntry) return;
       if (event.key === 'Escape') {
         onClose();
         return;
@@ -1415,16 +1449,27 @@ export function ManualAddModal({
     };
 
     window.addEventListener('keydown', onKeyDown);
-    // Lock background scroll while the modal owns the viewport.
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    acquireBodyScrollLock();
     dialogRef.current?.focus();
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
-      // Restore focus to whatever opened the modal.
-      openerRef.current?.focus();
+      const stackIndex = openModalStack.indexOf(stackEntry);
+      const wasTopmost = stackIndex === openModalStack.length - 1;
+      const removedDialog = stackEntry.getDialog();
+      if (stackIndex >= 0) openModalStack.splice(stackIndex, 1);
+      releaseBodyScrollLock();
+
+      if (!wasTopmost && stackIndex >= 0) {
+        const entryAbove = openModalStack[stackIndex];
+        if (entryAbove && removedDialog?.contains(entryAbove.restoreFocus)) {
+          entryAbove.restoreFocus = stackEntry.restoreFocus;
+        }
+      } else if (wasTopmost) {
+        const nextTopmost = openModalStack[openModalStack.length - 1];
+        const focusTarget = nextTopmost?.getDialog() ?? stackEntry.restoreFocus;
+        if (focusTarget?.isConnected) focusTarget.focus();
+      }
     };
   }, [open, onClose]);
 
@@ -1580,7 +1625,7 @@ export function ManualAddModal({
                   </span>
                   <span className="phylax-wallet-guide__wallet-copy">
                     <strong>{guide.name}</strong>
-                    <span>{guide.navDetail}</span>
+                    <span>{guide.steps.length} guided steps</span>
                   </span>
                   <span className="phylax-wallet-guide__selected-check"><CheckIcon /></span>
                 </button>
@@ -1695,7 +1740,7 @@ export function ManualAddModal({
               <div key={step} className="phylax-wallet-guide__walkthrough">
                 <div className="phylax-wallet-guide__image-stage">
                   <img
-                    src={buildCloudflareImageUrl(currentStep.image, imageOptions)}
+                    src={currentImageUrl}
                     alt={`${activeGuide.name} step ${step + 1}: ${currentStep.title}`}
                   />
                 </div>

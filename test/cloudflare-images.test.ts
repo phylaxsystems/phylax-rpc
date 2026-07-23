@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { buildCloudflareImageUrl } from '../src/cloudflare-images';
+import {
+  buildCloudflareImageUrl,
+  type CloudflareImageOptions,
+} from '../src/cloudflare-images';
+import type { ManualAddModalProps } from '../src/ManualAddModal.types';
+
+function acceptsModalImageOptions(_options: ManualAddModalProps['imageOptions']): void {}
+
+acceptsModalImageOptions({ format: 'auto' });
+// @ts-expect-error Cloudflare's JSON metadata response cannot be rendered by an <img>.
+acceptsModalImageOptions({ format: 'json' });
 
 const DELIVERY_URL =
   'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/303a6ec3-a1d7-4227-5469-5dc8d06a0400/public';
@@ -25,10 +35,11 @@ describe('buildCloudflareImageUrl', () => {
     );
   });
 
-  it('supports Cloudflare automatic width and quality presets', () => {
+  it('supports Cloudflare automatic width, quality, and JSON metadata options', () => {
     expect(
       buildCloudflareImageUrl(DELIVERY_URL, { width: 'auto', quality: 'medium-high' }),
     ).toContain('/width=auto,quality=medium-high');
+    expect(buildCloudflareImageUrl(DELIVERY_URL, { format: 'json' })).toContain('/format=json');
   });
 
   it.each([
@@ -44,10 +55,26 @@ describe('buildCloudflareImageUrl', () => {
   });
 
   it.each([
+    [{ fit: 'contain,quality=1' }, /fit/],
+    [{ quality: 'maximum' }, /quality/],
+    [{ format: 'png,width=1' }, /format/],
+  ])('rejects invalid runtime enum values', (options, message) => {
+    expect(() =>
+      buildCloudflareImageUrl(
+        DELIVERY_URL,
+        options as unknown as CloudflareImageOptions,
+      ),
+    ).toThrow(message);
+  });
+
+  it.each([
     'not a URL',
     'http://imagedelivery.net/account/image/public',
     'https://example.com/account/image/public',
     'https://imagedelivery.net/account/image',
+    'https://user:pass@imagedelivery.net/account/image/public',
+    'https://imagedelivery.net/account/image/public?width=1',
+    'https://imagedelivery.net/account/image/public#fragment',
   ])('rejects invalid delivery URL %s', (url) => {
     expect(() => buildCloudflareImageUrl(url, { width: 600 })).toThrow(/deliveryUrl/);
   });

@@ -43,12 +43,6 @@ export async function attemptSwitch(options: SwitchOptions): Promise<SwitchResul
     return { outcome: 'unsupported', added: false, switched: false, manualFallback: true };
   }
 
-  // We couldn't determine current routing (transient error / non-mainnet config). Do NOT
-  // mutate wallet state on a guess — an already-connected wallet must not be disrupted.
-  if (initial === 'inconclusive') {
-    return { outcome: 'unverified', added: false, switched: false, manualFallback: true };
-  }
-
   // Establish a protected baseline BEFORE mutating: only a probe that reverts off-Phylax
   // now proves the tx is credible-protected, so a later success is a real off→on transition.
   let baseline: DetectionResult | undefined;
@@ -59,6 +53,13 @@ export async function attemptSwitch(options: SwitchOptions): Promise<SwitchResul
       account: options.account,
       config,
     });
+  }
+
+  // A failed routing signal is safe to continue past only when the transaction probe proves
+  // the wallet is currently off-Phylax. This supports non-mainnet and older RPC deployments
+  // without mutating an already-connected wallet after a transient probe failure.
+  if (initial === 'inconclusive' && baseline?.status !== 'off-phylax') {
+    return { outcome: 'unverified', added: false, switched: false, manualFallback: true };
   }
 
   let added = false;

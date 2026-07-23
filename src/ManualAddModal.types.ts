@@ -1,4 +1,11 @@
-import type { CloudflareImageOptions } from './cloudflare-images';
+import type {
+  CloudflareImageFormat,
+  CloudflareImageOptions,
+} from './cloudflare-images';
+
+type ModalImageOptions = Omit<CloudflareImageOptions, 'format'> & {
+  readonly format?: Exclude<CloudflareImageFormat, 'json'>;
+};
 
 /** Props for {@link ManualAddModal}, co-located with the component. */
 export interface ManualAddModalProps {
@@ -17,7 +24,7 @@ export interface ManualAddModalProps {
    * Cloudflare Images flexible-variant options applied to the wallet walkthrough images.
    * Omit this to use the images' `public` variant.
    */
-  readonly imageOptions?: CloudflareImageOptions;
+  readonly imageOptions?: ModalImageOptions;
   /**
    * Silent wallet-backed verification invoked when the modal opens, every three seconds
    * while visible, and when the window regains focus. Return `true` only when the

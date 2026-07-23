@@ -33,6 +33,24 @@ describe('extractRevertData', () => {
     expect(extractRevertData({ from: addr, data })).toBe(data);
   });
 
+  it('ignores unrelated hex values outside known error fields', () => {
+    expect(
+      extractRevertData({
+        transactionHash: '0x' + '11'.repeat(32),
+        from: '0x' + '22'.repeat(20),
+      }),
+    ).toBeUndefined();
+  });
+
+  it('rejects hex values too short or malformed to be ABI revert data', () => {
+    expect(extractRevertData({ data: '0x1' })).toBeUndefined();
+    expect(extractRevertData({ data: '0x1234567' })).toBeUndefined();
+    expect(extractRevertData({ data: '0x123456789' })).toBeUndefined();
+    expect(extractRevertData({ data: '0x12345678zz' })).toBeUndefined();
+    expect(extractRevertData({ message: 'data: 0x12345678zz' })).toBeUndefined();
+    expect(extractRevertData({ message: `${data}zz` })).toBeUndefined();
+  });
+
   it('returns undefined when there is no hex anywhere', () => {
     expect(extractRevertData(new Error('network timeout'))).toBeUndefined();
     expect(extractRevertData(null)).toBeUndefined();

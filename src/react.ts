@@ -133,6 +133,8 @@ export function usePhylaxRpcSwitch(
   // Ignore results from superseded operations and from calls that complete after unmount,
   // so a slow earlier request can never overwrite newer state or clear loading early.
   const mountedRef = useRef(true);
+  const resolveGenRef = useRef(0);
+  const refreshGenRef = useRef(0);
   const checkGenRef = useRef(0);
   const detectGenRef = useRef(0);
   const switchGenRef = useRef(0);
@@ -143,44 +145,117 @@ export function usePhylaxRpcSwitch(
     };
   }, []);
 
+  const identityRef = useRef({
+    client,
+    address: account?.address,
+    connector: account?.connector,
+  });
+
+  // State belongs to the current client and connected account. Invalidate pending work and
+  // remove results from the previous identity as soon as either boundary changes.
+  useEffect(() => {
+    const previous = identityRef.current;
+    if (
+      previous.client === client &&
+      previous.address === account?.address &&
+      previous.connector === account?.connector
+    ) {
+      return;
+    }
+    identityRef.current = {
+      client,
+      address: account?.address,
+      connector: account?.connector,
+    };
+    resolveGenRef.current += 1;
+    refreshGenRef.current += 1;
+    checkGenRef.current += 1;
+    detectGenRef.current += 1;
+    switchGenRef.current += 1;
+    setProviders([]);
+    setDiscovering(false);
+    setConnected(undefined);
+    setConnectedToPhylax(undefined);
+    setCheckingConnection(false);
+    setDetection(undefined);
+    setSwitchResult(undefined);
+  }, [client, account?.address, account?.connector]);
+
   // Resolve (and cache) the connected wallet from the wagmi account, when one was passed.
   const resolveConnected = useCallback(async (): Promise<ConnectedWallet | undefined> => {
+    const gen = ++resolveGenRef.current;
     const acct = accountRef.current;
-    if (!acct?.connector) return undefined;
+    const connector = acct?.connector;
+    const address = acct?.address;
+    if (!connector) return undefined;
     const result = (await connectedWallet(acct)) ?? undefined;
-    if (mountedRef.current) setConnected(result);
+    const currentAccount = accountRef.current;
+    const isCurrent =
+      mountedRef.current &&
+      gen === resolveGenRef.current &&
+      connector === currentAccount?.connector &&
+      address === currentAccount?.address;
+    if (!isCurrent) return undefined;
+    setConnected(result);
     return result;
   }, []);
 
   const refresh = useCallback(async (options?: DiscoverOptions) => {
+    const gen = ++refreshGenRef.current;
+    const operationClient = clientRef.current;
     setDiscovering(true);
     try {
-      const found = await clientRef.current.discoverProviders(options);
-      if (mountedRef.current) setProviders(found);
+      const found = await operationClient.discoverProviders(options);
+      if (
+        mountedRef.current &&
+        gen === refreshGenRef.current &&
+        operationClient === clientRef.current
+      ) {
+        setProviders(found);
+      }
       return found;
     } finally {
-      if (mountedRef.current) setDiscovering(false);
+      if (
+        mountedRef.current &&
+        gen === refreshGenRef.current &&
+        operationClient === clientRef.current
+      ) {
+        setDiscovering(false);
+      }
     }
   }, []);
 
   const isConnectedToPhylax = useCallback(
     async (args: HookConnectionArgs = {}) => {
-      const provider = args.provider ?? (await resolveConnected())?.provider;
-      if (!provider) {
-        throw new Error(
-          'usePhylaxRpcSwitch.isConnectedToPhylax: no provider, pass `args.provider`, or ' +
-            'pass the wagmi `account` to the hook so the connected provider can be resolved.',
-        );
-      }
-
       const gen = ++checkGenRef.current;
+      const operationClient = clientRef.current;
       if (mountedRef.current) setCheckingConnection(true);
       try {
-        const result = await clientRef.current.isConnectedToPhylax(provider);
-        if (mountedRef.current && gen === checkGenRef.current) setConnectedToPhylax(result);
+        const provider = args.provider ?? (await resolveConnected())?.provider;
+        if (!provider) {
+          throw new Error(
+            'usePhylaxRpcSwitch.isConnectedToPhylax: no provider, pass `args.provider`, or ' +
+              'pass the wagmi `account` to the hook so the connected provider can be resolved.',
+          );
+        }
+
+        const result = await operationClient.isConnectedToPhylax(provider);
+        if (
+          mountedRef.current &&
+          gen === checkGenRef.current &&
+          operationClient === clientRef.current
+        ) {
+          setConnectedToPhylax(result);
+        }
         return result;
       } finally {
-        if (mountedRef.current && gen === checkGenRef.current) setCheckingConnection(false);
+        if (
+          mountedRef.current &&
+          gen === checkGenRef.current &&
+          operationClient === clientRef.current
+        ) {
+          setCheckingConnection(false);
+        }
       }
     },
     [resolveConnected],
@@ -188,6 +263,8 @@ export function usePhylaxRpcSwitch(
 
   const detect = useCallback(
     async (args: HookDetectArgs) => {
+      const gen = ++detectGenRef.current;
+      const operationClient = clientRef.current;
       const provider = args.provider ?? (await resolveConnected())?.provider;
       if (!provider) {
         throw new Error(
@@ -195,14 +272,19 @@ export function usePhylaxRpcSwitch(
             'wagmi `account` to the hook so the connected provider can be resolved.',
         );
       }
-      const gen = ++detectGenRef.current;
-      const result = await clientRef.current.detect({
+      const result = await operationClient.detect({
         provider,
         transaction: args.transaction,
         method: args.method,
         account: args.account,
       });
-      if (mountedRef.current && gen === detectGenRef.current) setDetection(result);
+      if (
+        mountedRef.current &&
+        gen === detectGenRef.current &&
+        operationClient === clientRef.current
+      ) {
+        setDetection(result);
+      }
       return result;
     },
     [resolveConnected],
@@ -210,6 +292,8 @@ export function usePhylaxRpcSwitch(
 
   const attemptSwitch = useCallback(
     async (args: HookSwitchArgs) => {
+      const gen = ++switchGenRef.current;
+      const operationClient = clientRef.current;
       let { provider, wallet } = args;
       if (!provider || !wallet) {
         const c = await resolveConnected();
@@ -222,15 +306,18 @@ export function usePhylaxRpcSwitch(
             'pass the wagmi `account` to the hook so they can be resolved.',
         );
       }
-      const gen = ++switchGenRef.current;
-      const result = await clientRef.current.switch({
+      const result = await operationClient.switch({
         provider,
         wallet,
         verifyTransaction: args.verifyTransaction,
         account: args.account,
         force: args.force,
       });
-      if (mountedRef.current && gen === switchGenRef.current) {
+      if (
+        mountedRef.current &&
+        gen === switchGenRef.current &&
+        operationClient === clientRef.current
+      ) {
         setSwitchResult(result);
         setConnectedToPhylax(result.outcome === 'activated');
       }
