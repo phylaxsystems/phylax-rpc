@@ -5,10 +5,8 @@ const shared = {
   dts: true,
   treeshake: true,
   sourcemap: false,
-  // Inline guide artwork so ManualAddModal remains self-contained when consumers
-  // import the built package from a different asset base URL.
+  // Inline the small logo artwork. Walkthrough images are served by Cloudflare Images.
   loader: {
-    '.jpg': 'dataurl' as const,
     '.svg': 'dataurl' as const,
   },
   // React stays a peer dependency; never bundle it.

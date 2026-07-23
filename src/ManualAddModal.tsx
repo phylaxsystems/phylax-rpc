@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import phylaxLogo from './assets/phylax-logo.svg';
 import rabbyLogo from './assets/rabby/logo.svg';
-import rabbyOpenNetwork from './assets/rabby/open-network.jpg';
-import rabbySettings from './assets/rabby/settings.jpg';
-import rabbyModifyRpc from './assets/rabby/modify-rpc.jpg';
-import rabbyEnterRpc from './assets/rabby/enter-rpc.jpg';
-import rabbyEnabled from './assets/rabby/enabled.jpg';
+import { buildCloudflareImageUrl } from './cloudflare-images';
 import type {
   ConnectionVerificationState,
   ManualAddModalProps,
@@ -26,27 +22,27 @@ const nextInstanceId = (): string => `phylax-manual-add-${(instanceCounter += 1)
 
 const RABBY_STEPS = [
   {
-    image: rabbyOpenNetwork,
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/303a6ec3-a1d7-4227-5469-5dc8d06a0400/public',
     title: 'Open More in Rabby',
     text: 'Open Rabby, make sure Ethereum is selected, then choose More from the home screen.',
   },
   {
-    image: rabbySettings,
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/674f816e-68c6-4743-9678-6759c6b4aa00/public',
     title: 'Open the RPC settings',
     text: 'In Settings, select Modify RPC URL. This keeps you on Ethereum while changing its node.',
   },
   {
-    image: rabbyModifyRpc,
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/076f8964-d701-4c18-7b3a-e731b68f3f00/public',
     title: 'Start a custom RPC',
     text: 'Select Modify RPC URL, then choose Ethereum from the list of supported chains.',
   },
   {
-    image: rabbyEnterRpc,
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/8ac7c7e9-8428-48f6-a719-ecc9ace0c000/public',
     title: 'Paste the Phylax URL',
     text: 'Replace Rabby’s default node with the Phylax RPC URL, then select Save.',
   },
   {
-    image: rabbyEnabled,
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/3dfe8963-bbcd-4dc1-6b49-2948fcc1f900/public',
     title: 'Make sure it is enabled',
     text: 'Check that the Ethereum custom RPC is switched on and the Phylax URL appears below it.',
   },
@@ -1315,6 +1311,7 @@ export function ManualAddModal({
   onClose,
   walletName,
   rpcUrl,
+  imageOptions,
   verifyConnection,
   styleNonce,
 }: ManualAddModalProps): ReactElement | null {
@@ -1697,7 +1694,10 @@ export function ManualAddModal({
 
               <div key={step} className="phylax-wallet-guide__walkthrough">
                 <div className="phylax-wallet-guide__image-stage">
-                  <img src={currentStep.image} alt={`${activeGuide.name} step ${step + 1}: ${currentStep.title}`} />
+                  <img
+                    src={buildCloudflareImageUrl(currentStep.image, imageOptions)}
+                    alt={`${activeGuide.name} step ${step + 1}: ${currentStep.title}`}
+                  />
                 </div>
 
                 <section className="phylax-wallet-guide__step-card" aria-live="polite">

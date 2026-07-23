@@ -47,10 +47,31 @@ function Guard() {
   const account = useAccount();
   const { detect, attemptSwitch, connected, isConnectedToPhylax } = usePhylaxRpcSwitch(
     { rpcUrl: 'https://rpc.phylax.systems' },
-    account, // resolves the connected provider — works for WalletConnect/Coinbase too
+    account, // resolves the connected provider; works for WalletConnect/Coinbase too
   );
-  // …call detect({ transaction }) / attemptSwitch({ verifyTransaction }) on submit.
+  // Call detect({ transaction }) / attemptSwitch({ verifyTransaction }) on submit.
+
+  return (
+    <ManualAddModal
+      open={false}
+      onClose={() => {}}
+      imageOptions={{ width: 600, quality: 85, format: 'auto' }}
+    />
+  );
 }
+```
+
+The walkthrough screenshots are served by Cloudflare Images. Pass `imageOptions` to
+`ManualAddModal` to request a different size, fit, DPR, quality, or format. The same URL
+builder is available for headless use:
+
+```ts
+import { buildCloudflareImageUrl } from '@phylaxsystems/phylax-rpc';
+
+const imageUrl = buildCloudflareImageUrl(deliveryUrl, {
+  width: 600,
+  format: 'auto',
+});
 ```
 
 ### Framework adapters

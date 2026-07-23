@@ -24,6 +24,14 @@ export { toWeb3OnboardChain } from './web3onboard';
 
 export { PhylaxRpcSwitch } from './client';
 
+export { buildCloudflareImageUrl } from './cloudflare-images';
+export type {
+  CloudflareImageFit,
+  CloudflareImageFormat,
+  CloudflareImageOptions,
+  CloudflareImageQuality,
+} from './cloudflare-images';
+
 export type {
   Address,
   AddEthereumChainParameter,

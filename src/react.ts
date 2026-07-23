@@ -18,6 +18,12 @@ import type {
 import type { DiscoverOptions } from './wallets';
 
 export { ManualAddModal, type ManualAddModalProps } from './ManualAddModal';
+export type {
+  CloudflareImageFit,
+  CloudflareImageFormat,
+  CloudflareImageOptions,
+  CloudflareImageQuality,
+} from './cloudflare-images';
 
 /**
  * Args for the hook's `detect`. `provider` is optional when the hook was given a wagmi

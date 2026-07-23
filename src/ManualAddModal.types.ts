@@ -1,3 +1,5 @@
+import type { CloudflareImageOptions } from './cloudflare-images';
+
 /** Props for {@link ManualAddModal}, co-located with the component. */
 export interface ManualAddModalProps {
   /** Whether the modal is visible. */
@@ -11,6 +13,11 @@ export interface ManualAddModalProps {
   readonly walletName?: string;
   /** The Phylax RPC URL the user needs to add. Shown for reference. */
   readonly rpcUrl?: string;
+  /**
+   * Cloudflare Images flexible-variant options applied to the wallet walkthrough images.
+   * Omit this to use the images' `public` variant.
+   */
+  readonly imageOptions?: CloudflareImageOptions;
   /**
    * Silent wallet-backed verification invoked when the modal opens, every three seconds
    * while visible, and when the window regains focus. Return `true` only when the
