@@ -1,3 +1,4 @@
+import { asChainId, asRpcUrl } from './brands';
 import {
   DEFAULT_CHAIN_NAME,
   DEFAULT_CREDIBLE_REVERT_MATCH,
@@ -6,33 +7,45 @@ import {
 } from './constants';
 import { toHexChainId } from './hex';
 import type {
+  AddEthereumChainParameter,
   ManualInstructions,
+  NativeCurrency,
   PhylaxRpcConfig,
   ResolvedPhylaxRpcConfig,
 } from './types';
 
 /** Apply defaults and validate a {@link PhylaxRpcConfig}. */
 export function resolveConfig(config: PhylaxRpcConfig): ResolvedPhylaxRpcConfig {
-  if (!config || typeof config.rpcUrl !== 'string' || config.rpcUrl.length === 0) {
-    throw new Error('PhylaxRpcConfig.rpcUrl is required');
+  if (config == null || typeof config !== 'object') {
+    throw new TypeError('PhylaxRpcConfig is required');
   }
+  const rpcUrl = asRpcUrl(config.rpcUrl);
+  const chainId = asChainId(config.chainId ?? MAINNET_CHAIN_ID);
+  const nativeCurrency = validateNativeCurrency(
+    config.nativeCurrency ?? DEFAULT_NATIVE_CURRENCY,
+  );
   return {
-    rpcUrl: config.rpcUrl,
-    chainId: config.chainId ?? MAINNET_CHAIN_ID,
+    rpcUrl,
+    chainId,
     chainName: config.chainName ?? DEFAULT_CHAIN_NAME,
-    nativeCurrency: config.nativeCurrency ?? { ...DEFAULT_NATIVE_CURRENCY },
+    nativeCurrency,
     blockExplorerUrls: config.blockExplorerUrls,
     credibleRevertMatch: config.credibleRevertMatch ?? DEFAULT_CREDIBLE_REVERT_MATCH,
   };
 }
 
-/** EIP-3085 `wallet_addEthereumChain` parameter object for the Phylax RPC. */
-export interface AddEthereumChainParameter {
-  chainId: string;
-  chainName: string;
-  nativeCurrency: { name: string; symbol: string; decimals: number };
-  rpcUrls: string[];
-  blockExplorerUrls?: string[];
+function validateNativeCurrency(currency: NativeCurrency): NativeCurrency {
+  const { name, symbol, decimals } = currency;
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new TypeError('nativeCurrency.name is required');
+  }
+  if (typeof symbol !== 'string' || symbol.length === 0) {
+    throw new TypeError('nativeCurrency.symbol is required');
+  }
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
+    throw new TypeError(`nativeCurrency.decimals must be an integer in [0, 36], got ${decimals}`);
+  }
+  return { name, symbol, decimals };
 }
 
 export function buildAddChainParams(

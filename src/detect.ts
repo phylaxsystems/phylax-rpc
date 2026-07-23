@@ -1,30 +1,16 @@
 import { decodeErrorString, isErrorStringRevert } from './abi';
 import { extractRevertData, request } from './eip1193';
-import { toHexQuantity } from './hex';
+import { isNumeric, toHexQuantity } from './hex';
 import type {
   CredibleRevertMatch,
   DetectionResult,
+  DetectOptions,
   Eip1193Provider,
   LooseTransactionRequest,
-  Numeric,
-  ResolvedPhylaxRpcConfig,
+  PreflightMethod,
 } from './types';
 
-export type PreflightMethod = 'eth_estimateGas' | 'eth_call';
-
-export interface DetectOptions {
-  provider: Eip1193Provider;
-  transaction: LooseTransactionRequest;
-  config: ResolvedPhylaxRpcConfig;
-  /** Preflight method. Defaults to `eth_estimateGas`. */
-  method?: PreflightMethod;
-  /**
-   * The sender to preflight as, when the transaction omits `from`. If neither this nor
-   * `transaction.from` is set, the provider is queried with `eth_accounts` (silent — no
-   * wallet popup). A `eth_requestAccounts` prompt is never triggered from here.
-   */
-  account?: string;
-}
+export type { DetectOptions, PreflightMethod } from './types';
 
 /** Numeric tx fields coerced to a hex QUANTITY before the preflight call. */
 const NUMERIC_FIELDS = [
@@ -36,7 +22,12 @@ const NUMERIC_FIELDS = [
 ] as const;
 
 function matchesCredible(reason: string, match: CredibleRevertMatch): boolean {
-  return typeof match === 'function' ? match(reason) : match.test(reason);
+  if (typeof match === 'function') return match(reason);
+  // A caller-supplied `/g` or `/y` RegExp is stateful: `RegExp.test` advances `lastIndex`,
+  // so back-to-back probes on the same matcher would alternate hit/miss. Reset first so each
+  // detection is independent of prior calls (a no-op for non-sticky/non-global matchers).
+  match.lastIndex = 0;
+  return match.test(reason);
 }
 
 /**
@@ -59,7 +50,11 @@ export function normalizeTransaction(
   }
   for (const field of NUMERIC_FIELDS) {
     const value = out[field];
-    if (value != null) out[field] = toHexQuantity(value as Numeric);
+    if (value == null) continue;
+    if (!isNumeric(value)) {
+      throw new TypeError(`normalizeTransaction: ${field} is not a numeric value`);
+    }
+    out[field] = toHexQuantity(value);
   }
   return out;
 }
@@ -79,7 +74,7 @@ export function buildPreflightParams(
 /** Silently read the connected account (`eth_accounts`), never prompting. */
 async function resolveAccount(provider: Eip1193Provider): Promise<string | undefined> {
   try {
-    const accounts = await request<unknown>(provider, 'eth_accounts');
+    const accounts = await request(provider, 'eth_accounts');
     return Array.isArray(accounts) && typeof accounts[0] === 'string'
       ? accounts[0]
       : undefined;
@@ -95,8 +90,9 @@ async function resolveAccount(provider: Eip1193Provider): Promise<string | undef
  * - Preflight succeeds → on Phylax (the Phylax RPC answers the require as-if in a
  *   credible block), or the tx is simply not credible-protected. Either way: no switch.
  * - Preflight reverts with `Error(string)` matching the credible message → off Phylax.
- * - Preflight reverts for another reason → a genuine tx error, not a routing problem.
- * - Anything else (network error, opaque shape) → inconclusive.
+ * - Preflight reverts with any other decodable data (a different `Error(string)`, a
+ *   `Panic`, or a custom error) → a genuine revert, not a routing problem.
+ * - No decodable revert data (network error, opaque shape) → inconclusive.
  *
  * The wallet's own confirm-screen "tx will fail" verdict is deliberately ignored: it is
  * generic, runs against the wallet's centralized simulator, and fires even for
@@ -130,29 +126,33 @@ export async function detectOffPhylax(options: DetectOptions): Promise<Detection
     return { status: 'on-phylax', offPhylax: false };
   } catch (error) {
     const revertData = extractRevertData(error);
+    if (!revertData) {
+      // Network failure, rate limit, opaque error shape — nothing to conclude.
+      return { status: 'inconclusive', offPhylax: false, error };
+    }
 
-    if (revertData && isErrorStringRevert(revertData)) {
-      const revertReason = decodeErrorString(revertData);
-      if (revertReason && matchesCredible(revertReason, config.credibleRevertMatch)) {
-        return {
-          status: 'off-phylax',
-          offPhylax: true,
-          revertReason,
-          revertData,
-          error,
-        };
-      }
-      // A different Error(string) — a real contract revert, not a routing signal.
+    const revertReason = isErrorStringRevert(revertData)
+      ? decodeErrorString(revertData)
+      : undefined;
+
+    if (revertReason && matchesCredible(revertReason, config.credibleRevertMatch)) {
       return {
-        status: 'reverted',
-        offPhylax: false,
+        status: 'off-phylax',
+        offPhylax: true,
         revertReason,
         revertData,
         error,
       };
     }
 
-    // No decodable revert data: network failure, rate limit, opaque error shape, etc.
-    return { status: 'inconclusive', offPhylax: false, error };
+    // Valid revert data that is not the credible signal — a real contract revert
+    // (a different `Error(string)`, `Panic(uint256)`, or a custom error).
+    return {
+      status: 'reverted',
+      offPhylax: false,
+      ...(revertReason !== undefined ? { revertReason } : {}),
+      revertData,
+      error,
+    };
   }
 }

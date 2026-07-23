@@ -1,18 +1,12 @@
-import type { Eip1193Provider } from './types';
+import type { Eip1193Provider, RequestFnClient } from './types';
 
-/**
- * Structural mirror of a viem client's `request` entrypoint. Defined locally so the
- * adapter carries no runtime dependency on `viem`.
- */
-export interface RequestFnClient {
-  request(args: { method: string; params?: unknown }): Promise<unknown>;
-}
+export type { RequestFnClient } from './types';
 
 /**
  * Wrap a viem **wallet** client as an {@link Eip1193Provider} for `detect`/`switch`.
  *
  * ```ts
- * import { providerFromWalletClient } from 'phylax-rpc/viem';
+ * import { providerFromWalletClient } from '@phylaxsystems/phylax-rpc/viem';
  * const provider = providerFromWalletClient(walletClient);
  * ```
  *

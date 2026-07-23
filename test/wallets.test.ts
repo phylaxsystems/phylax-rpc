@@ -85,22 +85,36 @@ describe('discoverProviders', () => {
   });
 
   it('collects announced providers and de-dupes by uuid', async () => {
-    const target = new EventTarget() as unknown as DiscoveryTarget;
-    const announce = (uuid: string, rdns: string) =>
-      (target as unknown as EventTarget).dispatchEvent(
-        new CustomEvent('eip6963:announceProvider', {
-          detail: {
-            info: { uuid, name: rdns, icon: 'data:,', rdns },
-            provider: new MockProvider(),
-          },
-        }),
-      );
+    const bus = new EventTarget();
+    const target: DiscoveryTarget = {
+      addEventListener: (type, listener) => bus.addEventListener(type, listener),
+      removeEventListener: (type, listener) => bus.removeEventListener(type, listener),
+      dispatchEvent: (event) => bus.dispatchEvent(event),
+    };
+    const announce = (detail: unknown) =>
+      bus.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail }));
+    const valid = (uuid: string, rdns: string) => ({
+      info: { uuid, name: rdns, icon: 'data:image/svg+xml,<svg/>', rdns },
+      provider: new MockProvider(),
+    });
 
-    // Respond to the library's request event.
-    (target as unknown as EventTarget).addEventListener('eip6963:requestProvider', () => {
-      announce('uuid-mm', WALLET_RDNS.metamask);
-      announce('uuid-mm', WALLET_RDNS.metamask); // duplicate uuid
-      announce('uuid-rabby', WALLET_RDNS.rabby);
+    bus.addEventListener('eip6963:requestProvider', () => {
+      const metamaskUuid = '00000000-0000-4000-8000-000000000001';
+      announce(valid(metamaskUuid, WALLET_RDNS.metamask));
+      announce(valid(metamaskUuid, WALLET_RDNS.metamask)); // duplicate uuid
+      announce(valid('00000000-0000-4000-8000-000000000002', WALLET_RDNS.rabby));
+      // Malformed announcements must be rejected, not stored:
+      announce({ info: { uuid: 'uuid-bad', name: 'Bad', icon: 'x', rdns: 'io.bad' } }); // no provider
+      announce({
+        info: {
+          uuid: '00000000-0000-4000-8000-000000000003',
+          name: 'Remote icon',
+          icon: 'https://example.com/icon.svg',
+          rdns: 'io.remote',
+        },
+        provider: new MockProvider(),
+      });
+      announce({ info: { uuid: '', name: 'Empty', icon: 'x', rdns: 'io.empty' }, provider: {} });
     });
 
     const found = await discoverProviders({ target, timeout: 20 });

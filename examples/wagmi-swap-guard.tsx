@@ -7,6 +7,8 @@
  * `connectedWallet` (used here via the hook's `account` argument) resolves the
  * connected provider + classification directly from `useAccount()`.
  *
+ * All imports use the published scope, `@phylaxsystems/phylax-rpc`.
+ *
  * Two things to note:
  *  1. `transaction` is a LooseTransactionRequest — bigint `value`, no `from`. The
  *     library coerces the numeric fields and auto-resolves the sender via a silent
@@ -16,8 +18,8 @@
  *
  * Not wired to a bundler in this repo; it's a copy-paste reference for a wagmi app.
  */
-import { useAccount } from 'wagmi';
-import { usePhylaxRpcSwitch, ManualAddModal } from 'phylax-rpc/react';
+import { useAccount, useSendTransaction } from 'wagmi';
+import { usePhylaxRpcSwitch, ManualAddModal } from '@phylaxsystems/phylax-rpc/react';
 import { useState } from 'react';
 
 const PHYLAX = { rpcUrl: 'https://rpc.phylax.systems' };
@@ -28,10 +30,20 @@ export function SwapGuard({ to, data }: { to: `0x${string}`; data: `0x${string}`
   // discoverProviders(), works for WalletConnect/Coinbase/embedded connectors too.
   const { detect, attemptSwitch, connected, isConnectedToPhylax } =
     usePhylaxRpcSwitch(PHYLAX, account);
+  // The actual submission step. `sendTransactionAsync` broadcasts through the connected
+  // wallet — which, once we're verified on Phylax, means the tx is submitted via the
+  // protected RPC.
+  const { sendTransactionAsync } = useSendTransaction();
 
   const [manual, setManual] = useState(false);
   const [status, setStatus] = useState<string>('');
   const transaction = { to, data, value: 1_000_000_000_000_000_000n };
+
+  // Broadcast the swap through the wallet. Only ever called once routing is verified.
+  async function submit() {
+    const hash = await sendTransactionAsync(transaction);
+    setStatus(`submitted — ${hash}`);
+  }
 
   async function guardedSwap() {
     setManual(false);
@@ -39,15 +51,20 @@ export function SwapGuard({ to, data }: { to: `0x${string}`; data: `0x${string}`
     // Loose tx: bigint value, no `from`. Detection normalizes and fills the sender.
     const detection = await detect({ transaction });
     if (!detection.offPhylax) {
-      setStatus(detection.status); // on-phylax / reverted / inconclusive
-      // ...on-phylax → proceed to send the swap through the wallet as usual.
+      if (detection.status === 'on-phylax') {
+        // Already routed through Phylax → submit the swap end to end.
+        await submit();
+      } else {
+        setStatus(detection.status); // reverted / inconclusive → surface, don't submit
+      }
       return;
     }
 
     // Off Phylax — try the assisted switch; the verify probe re-runs the preflight.
     const result = await attemptSwitch({ verifyTransaction: transaction });
     if (result.outcome === 'activated') {
-      setStatus('activated — safe to swap');
+      // Switch verified we're now on Phylax → submit the swap end to end.
+      await submit();
     } else if (result.manualFallback) {
       setManual(true); // unsupported wallet → guide the user through manual add
     }

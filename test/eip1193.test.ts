@@ -23,9 +23,74 @@ describe('extractRevertData', () => {
     ).toBe(data);
   });
 
+  it('reads the non-enumerable message of a native Error', () => {
+    // `Error.message` is non-enumerable, so an Object.values walk alone would miss it.
+    expect(extractRevertData(new Error(`execution reverted, data: ${data}`))).toBe(data);
+  });
+
   it('prefers the Error(string) blob over an address-shaped hex', () => {
     const addr = '0x' + '11'.repeat(20);
     expect(extractRevertData({ from: addr, data })).toBe(data);
+  });
+
+  it('ignores unrelated hex values outside known error fields', () => {
+    expect(
+      extractRevertData({
+        transactionHash: '0x' + '11'.repeat(32),
+        from: '0x' + '22'.repeat(20),
+      }),
+    ).toBeUndefined();
+  });
+
+  it('ignores a transaction hash embedded in a provider message', () => {
+    // A network error like `transaction 0x… not found` carries a 32-byte hash in `message`
+    // (a walked field). Its byte length is not `4 + 32·n`, so it must not be read as revert
+    // data — otherwise a plain network failure is misclassified as a contract revert.
+    const hash = '0x' + 'ab'.repeat(32);
+    expect(
+      extractRevertData(new Error(`transaction ${hash} not found`)),
+    ).toBeUndefined();
+    expect(extractRevertData({ data: hash })).toBeUndefined();
+  });
+
+  it('ignores an address-shaped hex in a walked field', () => {
+    expect(extractRevertData({ data: '0x' + '11'.repeat(20) })).toBeUndefined();
+  });
+
+  it('ignores echoed calldata in a free-text message', () => {
+    // An ERC-20 `transfer(address,uint256)` call is 4 + 2·32 bytes — the same shape as ABI
+    // revert data. When a provider echoes it inside a network-error message it must not be
+    // read as a revert; only structured `data` fields may carry arbitrary selectors.
+    const calldata = '0xa9059cbb' + '11'.repeat(12) + '22'.repeat(20) + '00'.repeat(31) + '01';
+    expect(
+      extractRevertData(new Error(`failed to send transaction with input ${calldata}`)),
+    ).toBeUndefined();
+    expect(extractRevertData({ reason: `input ${calldata} rejected` })).toBeUndefined();
+    // The same blob in a structured `data` field is a custom error and is accepted.
+    expect(extractRevertData({ data: calldata })).toBe(calldata);
+  });
+
+  it('accepts known revert selectors even inside a message string', () => {
+    const panic = '0x4e487b71' + '00'.repeat(31) + '11';
+    expect(extractRevertData({ message: `execution reverted: ${panic}` })).toBe(panic);
+    expect(extractRevertData({ message: `execution reverted, data: ${data}` })).toBe(data);
+  });
+
+  it('accepts ABI-word-aligned payloads (bare selector, Panic)', () => {
+    // 4-byte custom-error selector (n = 0) and a Panic(uint256) (selector + one 32-byte word).
+    const selector = '0x12345678';
+    const panic = '0x4e487b71' + '00'.repeat(31) + '01';
+    expect(extractRevertData({ data: selector })).toBe(selector);
+    expect(extractRevertData({ data: panic })).toBe(panic);
+  });
+
+  it('rejects hex values too short or malformed to be ABI revert data', () => {
+    expect(extractRevertData({ data: '0x1' })).toBeUndefined();
+    expect(extractRevertData({ data: '0x1234567' })).toBeUndefined();
+    expect(extractRevertData({ data: '0x123456789' })).toBeUndefined();
+    expect(extractRevertData({ data: '0x12345678zz' })).toBeUndefined();
+    expect(extractRevertData({ message: 'data: 0x12345678zz' })).toBeUndefined();
+    expect(extractRevertData({ message: `${data}zz` })).toBeUndefined();
   });
 
   it('returns undefined when there is no hex anywhere', () => {
@@ -50,8 +115,15 @@ describe('isUserRejection', () => {
     expect(isUserRejection({ message: 'User denied transaction signature' })).toBe(true);
   });
 
+  it('matches a rejection wrapped under cause/error', () => {
+    expect(isUserRejection({ message: 'request failed', cause: { code: 4001 } })).toBe(true);
+    expect(isUserRejection({ error: { code: 'ACTION_REJECTED' } })).toBe(true);
+  });
+
   it('does not match unrelated errors', () => {
     expect(isUserRejection({ code: -32603 })).toBe(false);
     expect(isUserRejection(new Error('boom'))).toBe(false);
+    // A bare "denied" in a contract revert message must not read as a user rejection.
+    expect(isUserRejection({ message: 'transfer denied by contract guard' })).toBe(false);
   });
 });

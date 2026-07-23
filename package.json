@@ -1,8 +1,11 @@
 {
-  "name": "phylax-rpc",
-  "version": "0.1.0",
+  "name": "@phylaxsystems/phylax-rpc",
+  "version": "0.0.0",
   "description": "Headless library to detect when a wallet is off the Phylax RPC and help users switch (EIP-6963 detection + credible-require preflight + assisted EIP add/switch/verify).",
   "license": "MIT",
+  "author": "Phylax Systems",
+  "homepage": "https://github.com/phylaxsystems/phylax-rpc#readme",
+  "bugs": "https://github.com/phylaxsystems/phylax-rpc/issues",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/phylaxsystems/phylax-rpc.git"
@@ -10,37 +13,39 @@
   "type": "module",
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "examples/wagmi-swap-guard.tsx"
   ],
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "default": "./dist/index.js"
+    },
+    "./advanced": {
+      "types": "./dist/advanced.d.ts",
+      "default": "./dist/advanced.js"
     },
     "./react": {
       "types": "./dist/react.d.ts",
-      "import": "./dist/react.js",
-      "require": "./dist/react.cjs"
+      "default": "./dist/react.js"
     },
     "./wagmi": {
       "types": "./dist/wagmi.d.ts",
-      "import": "./dist/wagmi.js",
-      "require": "./dist/wagmi.cjs"
+      "default": "./dist/wagmi.js"
     },
     "./viem": {
       "types": "./dist/viem.d.ts",
-      "import": "./dist/viem.js",
-      "require": "./dist/viem.cjs"
+      "default": "./dist/viem.js"
     },
     "./ethers": {
       "types": "./dist/ethers.d.ts",
-      "import": "./dist/ethers.js",
-      "require": "./dist/ethers.cjs"
+      "default": "./dist/ethers.js"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "tsup",
@@ -48,13 +53,18 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "example": "npm run build && python3 -m http.server 8080"
+    "example": "npm run build && python3 -m http.server 8080",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
+    "lint:package": "publint && attw --pack --profile esm-only",
+    "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
+    "ethers": ">=6",
     "react": ">=17",
-    "wagmi": ">=2",
     "viem": ">=2",
-    "ethers": ">=6"
+    "wagmi": ">=2"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -71,11 +81,17 @@
     }
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.1",
     "@types/react": "^18.3.3",
+    "@types/react-test-renderer": "^18.3.1",
+    "publint": "^0.3.5",
     "react": "^18.3.1",
+    "react-test-renderer": "^18.3.1",
     "tsup": "^8.2.4",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5"
+    "vitest": "^3.2.7"
   },
   "keywords": [
     "phylax",
@@ -89,6 +105,6 @@
     "mev"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   }
 }

@@ -1,26 +1,11 @@
 import { toHexChainId } from './hex';
-import type { ResolvedPhylaxRpcConfig } from './types';
+import type {
+  ResolvedPhylaxRpcConfig,
+  ToWeb3OnboardChainOptions,
+  Web3OnboardChain,
+} from './types';
 
-/** Subset of a Blocknative web3-onboard `Chain` config relevant to Phylax routing. */
-export interface Web3OnboardChain {
-  id: string;
-  token: string;
-  label: string;
-  rpcUrl: string;
-  /** web3-onboard's purpose-built field for a protected submission endpoint. */
-  protectedRpcUrl: string;
-  [key: string]: unknown;
-}
-
-export interface ToWeb3OnboardChainOptions {
-  /**
-   * The public RPC web3-onboard uses for reads. Defaults to the Phylax RPC, but you can
-   * point reads at a separate public endpoint and keep Phylax as `protectedRpcUrl` only.
-   */
-  publicRpcUrl?: string;
-  /** Extra fields merged onto the chain config. */
-  extra?: Record<string, unknown>;
-}
+export type { ToWeb3OnboardChainOptions, Web3OnboardChain } from './types';
 
 /**
  * Build a web3-onboard chain config that wires the Phylax RPC into `protectedRpcUrl`,

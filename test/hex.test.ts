@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { asChainId } from '../src/brands';
 import { toHexChainId, toHexQuantity } from '../src/hex';
 
 describe('toHexQuantity', () => {
@@ -36,10 +37,21 @@ describe('toHexQuantity', () => {
   it('rejects an empty string', () => {
     expect(() => toHexQuantity('   ')).toThrow();
   });
+
+  it('rejects negative values instead of producing "0x-1"', () => {
+    expect(() => toHexQuantity(-1)).toThrow(/non-negative/);
+    expect(() => toHexQuantity(-1n)).toThrow(/non-negative/);
+    expect(() => toHexQuantity('-5')).toThrow(/non-negative/);
+  });
+
+  it('rejects NaN and unsafe-magnitude numbers', () => {
+    expect(() => toHexQuantity(Number.NaN)).toThrow();
+    expect(() => toHexQuantity(2 ** 53)).toThrow(/safe-integer/);
+  });
 });
 
 describe('toHexChainId', () => {
   it('encodes mainnet', () => {
-    expect(toHexChainId(1)).toBe('0x1');
+    expect(toHexChainId(asChainId(1))).toBe('0x1');
   });
 });

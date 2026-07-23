@@ -28,6 +28,22 @@ describe('decodeErrorString', () => {
     expect(decodeErrorString('0x08c379a0')).toBeUndefined();
     expect(decodeErrorString('0x')).toBeUndefined();
   });
+
+  it('rejects truncated data whose declared length exceeds the payload', () => {
+    const selector = '08c379a0';
+    const offset = (32).toString(16).padStart(64, '0');
+    const length = (64).toString(16).padStart(64, '0'); // claims 64 bytes…
+    const data = 'deadbeef'; // …but supplies only 4
+    expect(decodeErrorString('0x' + selector + offset + length + data)).toBeUndefined();
+  });
+
+  it('rejects invalid UTF-8 string bytes', () => {
+    const selector = '08c379a0';
+    const offset = (32).toString(16).padStart(64, '0');
+    const length = (2).toString(16).padStart(64, '0');
+    const data = 'fffe'.padEnd(64, '0'); // 0xFFFE is not valid UTF-8
+    expect(decodeErrorString('0x' + selector + offset + length + data)).toBeUndefined();
+  });
 });
 
 describe('isErrorStringRevert', () => {
