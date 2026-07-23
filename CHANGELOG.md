@@ -1,4 +1,4 @@
-# @phylaxsystems/phylax-rpc
+# @phylax-systems/phylax-rpc
 
 ## 0.1.0
 

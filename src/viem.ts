@@ -6,7 +6,7 @@ export type { RequestFnClient } from './types';
  * Wrap a viem **wallet** client as an {@link Eip1193Provider} for `detect`/`switch`.
  *
  * ```ts
- * import { providerFromWalletClient } from '@phylaxsystems/phylax-rpc/viem';
+ * import { providerFromWalletClient } from '@phylax-systems/phylax-rpc/viem';
  * const provider = providerFromWalletClient(walletClient);
  * ```
  *
