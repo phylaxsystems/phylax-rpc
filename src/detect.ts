@@ -22,7 +22,12 @@ const NUMERIC_FIELDS = [
 ] as const;
 
 function matchesCredible(reason: string, match: CredibleRevertMatch): boolean {
-  return typeof match === 'function' ? match(reason) : match.test(reason);
+  if (typeof match === 'function') return match(reason);
+  // A caller-supplied `/g` or `/y` RegExp is stateful: `RegExp.test` advances `lastIndex`,
+  // so back-to-back probes on the same matcher would alternate hit/miss. Reset first so each
+  // detection is independent of prior calls (a no-op for non-sticky/non-global matchers).
+  match.lastIndex = 0;
+  return match.test(reason);
 }
 
 /**

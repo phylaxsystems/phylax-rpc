@@ -1,5 +1,5 @@
 import { buildAddChainParams, manualInstructions, resolveConfig } from './config';
-import { isConnectedToPhylax } from './connection';
+import { checkPhylaxRouting } from './connection';
 import { detectOffPhylax } from './detect';
 import { attemptSwitch } from './switch';
 import { toWeb3OnboardChain } from './web3onboard';
@@ -65,8 +65,11 @@ export class PhylaxRpcSwitch {
   }
 
   /** Silently check whether the wallet provider is currently routing through Phylax. */
-  isConnectedToPhylax(provider: Eip1193Provider): Promise<boolean> {
-    return isConnectedToPhylax(provider);
+  async isConnectedToPhylax(provider: Eip1193Provider): Promise<boolean> {
+    // Probe against the *configured* chain, not a hardcoded mainnet, so a client configured
+    // for another chain never reports mainnet's routing state as its own. Only a definitive
+    // `connected` reads as `true`; `disconnected`/`inconclusive` keep onboarding fail-closed.
+    return (await checkPhylaxRouting(provider, this.config.chainId)) === 'connected';
   }
 
   /** Attempt the assisted RPC switch, with routing checks before and after activation. */

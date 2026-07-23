@@ -190,13 +190,19 @@ export function usePhylaxRpcSwitch(
     if (!connector) return undefined;
     const result = (await connectedWallet(acct)) ?? undefined;
     const currentAccount = accountRef.current;
-    const isCurrent =
-      mountedRef.current &&
-      gen === resolveGenRef.current &&
-      connector === currentAccount?.connector &&
-      address === currentAccount?.address;
-    if (!isCurrent) return undefined;
-    setConnected(result);
+    // The resolution is only stale if the *account itself* changed while it was in flight —
+    // then the provider belongs to a wallet that's no longer connected. A concurrent
+    // resolveConnected() for the *same* account bumped the generation but does not
+    // invalidate this result, so callers still receive a valid provider (returning
+    // `undefined` here would surface a misleading "no provider" error to that caller).
+    const accountUnchanged =
+      connector === currentAccount?.connector && address === currentAccount?.address;
+    if (!accountUnchanged) return undefined;
+    // Only the latest resolution (and only while mounted) writes to state, so a superseded
+    // concurrent call can't clobber newer `connected` state.
+    if (mountedRef.current && gen === resolveGenRef.current) {
+      setConnected(result);
+    }
     return result;
   }, []);
 

@@ -2,6 +2,10 @@
 
 Headless library to detect when a wallet is off the Phylax RPC and help users switch (EIP-6963 detection + credible-require preflight + assisted EIP add/switch/verify).
 
+**Supported networks:** Ethereum mainnet (chain `1`) only. The versioned routing signal lives on mainnet, so silent routing verification is unavailable on other chains — a client configured for a different `chainId` reports `inconclusive`/`false` from `isConnectedToPhylax`.
+
+**Release status:** Unreleased. The first published version will be `0.1.0`; until then, install from source. This README is updated when the package is available on npm.
+
 ## Install
 
 ```bash
