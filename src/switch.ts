@@ -2,6 +2,7 @@ import { buildAddChainParams } from './config';
 import { checkPhylaxRouting } from './connection';
 import { detectOffPhylax } from './detect';
 import { isUserRejection, request } from './eip1193';
+import { readProp } from './guards';
 import { toHexChainId } from './hex';
 import type { DetectionResult, SwitchOptions, SwitchResult } from './types';
 
@@ -9,11 +10,9 @@ export type { SwitchOptions } from './types';
 
 /** Whether an add-chain failure means the chain is already present (safe to switch to). */
 function isAlreadyAddedError(error: unknown): boolean {
-  const message =
-    error != null && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string'
-      ? (error as { message: string }).message.toLowerCase()
-      : '';
-  return /already (been )?(added|exists?)|already present|duplicate/.test(message);
+  const message = readProp(error, 'message');
+  const text = typeof message === 'string' ? message.toLowerCase() : '';
+  return /already (been )?(added|exists?)|already present|duplicate/.test(text);
 }
 
 /**

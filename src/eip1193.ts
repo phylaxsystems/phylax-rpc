@@ -1,4 +1,5 @@
 import { isHex } from './brands';
+import { isObject, readProp } from './guards';
 import { ERROR_STRING_SELECTOR } from './constants';
 import type { Eip1193Provider, Hex, RpcMethod } from './types';
 
@@ -32,10 +33,10 @@ const KNOWN_ERROR_KEYS = [
   'shortMessage',
 ] as const;
 
-function knownValues(node: object): unknown[] {
+function knownValues(node: unknown): unknown[] {
   const out: unknown[] = [];
   for (const key of KNOWN_ERROR_KEYS) {
-    const value = (node as Record<string, unknown>)[key];
+    const value = readProp(node, key);
     if (value !== undefined) out.push(value);
   }
   return out;
@@ -107,12 +108,11 @@ export function isUserRejection(error: unknown): boolean {
   const seen = new Set<object>();
   const walk = (node: unknown, depth: number): boolean => {
     if (node == null || depth > 8) return false;
-    if (typeof node !== 'object') return false;
+    if (!isObject(node)) return false;
     if (seen.has(node)) return false;
     seen.add(node);
-    const e = node as { code?: unknown; message?: unknown };
-    if (USER_REJECTION_CODES.has(e.code)) return true;
-    if (typeof e.message === 'string' && USER_REJECTION_TEXT.test(e.message)) return true;
+    if (USER_REJECTION_CODES.has(node.code)) return true;
+    if (typeof node.message === 'string' && USER_REJECTION_TEXT.test(node.message)) return true;
     for (const value of knownValues(node)) {
       if (walk(value, depth + 1)) return true;
     }

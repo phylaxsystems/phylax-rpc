@@ -1,4 +1,5 @@
 import { asWalletRdns, isUuid, isWalletRdns } from './brands';
+import { isObject, readProp } from './guards';
 import { DEFAULT_DISCOVERY_TIMEOUT, WALLET_RDNS } from './constants';
 import type {
   ClassifyInput,
@@ -15,12 +16,7 @@ export type { ClassifyInput, DiscoverOptions, DiscoveryTarget } from './types';
 
 /** Whether `value` structurally satisfies the EIP-1193 provider surface we depend on. */
 export function isEip1193Provider(value: unknown): value is Eip1193Provider {
-  return (
-    value != null &&
-    typeof value === 'object' &&
-    // Narrowing an `unknown` member requires one contained cast; the runtime check is real.
-    typeof (value as { request?: unknown }).request === 'function'
-  );
+  return typeof readProp(value, 'request') === 'function';
 }
 
 /**
@@ -29,16 +25,11 @@ export function isEip1193Provider(value: unknown): value is Eip1193Provider {
  * rather than stored, so downstream code never handles unchecked external data.
  */
 function toValidDetail(detail: unknown): Eip6963ProviderDetail | undefined {
-  if (detail == null || typeof detail !== 'object') return undefined;
-  const info = (detail as { info?: unknown }).info;
-  const provider = (detail as { provider?: unknown }).provider;
-  if (info == null || typeof info !== 'object') return undefined;
-  const { uuid, name, icon, rdns } = info as {
-    uuid?: unknown;
-    name?: unknown;
-    icon?: unknown;
-    rdns?: unknown;
-  };
+  if (!isObject(detail)) return undefined;
+  const info = detail.info;
+  const provider = detail.provider;
+  if (!isObject(info)) return undefined;
+  const { uuid, name, icon, rdns } = info;
   if (
     !isUuid(uuid) ||
     typeof name !== 'string' ||
@@ -74,7 +65,7 @@ export function discoverProviders(
 
     const found = new Map<string, Eip6963ProviderDetail>();
     const onAnnounce = (event: Event): void => {
-      const detail = toValidDetail((event as CustomEvent<unknown>).detail);
+      const detail = toValidDetail(readProp(event, 'detail'));
       if (detail) found.set(detail.info.uuid, detail);
     };
 

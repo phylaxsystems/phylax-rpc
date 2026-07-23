@@ -34,6 +34,12 @@ export interface ManualAddModalProps {
   /**
    * CSP nonce applied to the injected `<style>` element. Set this when the host page runs
    * a strict `style-src` policy so the modal's stylesheet is allowed.
+   *
+   * Note: this nonces the stylesheet only. The modal also sets a few inline `style`
+   * attributes for per-render values that cannot live in a static sheet — theme variables,
+   * the step-progress width, and the back-arrow rotation. A CSP nonce does not authorize
+   * inline `style` **attributes**, so a strict `style-src` must also include `'unsafe-inline'`
+   * (or `'unsafe-hashes'` with the corresponding hashes) for the modal to render correctly.
    */
   readonly styleNonce?: string;
 }

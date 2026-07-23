@@ -68,7 +68,12 @@ function Guard() {
 The walkthrough screenshots are served by Cloudflare Images. Pass `imageOptions` to
 `ManualAddModal` to request a different size, fit, DPR, quality, or image format. Apps with
 a Content Security Policy must allow `https://imagedelivery.net` in `img-src`. Pass the
-page's nonce through `styleNonce` when `style-src` requires one. The same URL builder is
+page's nonce through `styleNonce` to authorize the injected `<style>` element under a
+strict `style-src`. Note that `styleNonce` covers the stylesheet only: the modal also emits
+a few inline `style` attributes for per-render values (theme variables, step-progress width,
+back-arrow rotation), and a CSP nonce does not authorize inline `style` attributes — so a
+strict `style-src` must also include `'unsafe-inline'` (or `'unsafe-hashes'` plus the
+relevant hashes). The same URL builder is
 available for headless use (including Cloudflare's JSON metadata format):
 
 ```ts

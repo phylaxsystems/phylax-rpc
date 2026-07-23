@@ -46,6 +46,8 @@ export {
   isChainId,
   isHex,
   isHexQuantity,
+  isMilliseconds,
+  isRpcUrl,
   isUuid,
   isWalletRdns,
   toHex,

@@ -1,5 +1,11 @@
 import { asHexQuantity } from './brands';
+import { isObject } from './guards';
 import type { ChainId, HexQuantity, Numeric } from './types';
+
+/** Whether `value` duck-types as an ethers `BigNumber` (exposes `toHexString()`). */
+function hasToHexString(value: unknown): value is { toHexString(): string } {
+  return isObject(value) && typeof value.toHexString === 'function';
+}
 
 /** Trim whitespace and ensure a leading `0x`. */
 export function normalizeHex(value: string): string {
@@ -54,8 +60,7 @@ export function isNumeric(value: unknown): value is Numeric {
     typeof value === 'string' ||
     typeof value === 'number' ||
     typeof value === 'bigint' ||
-    (value != null &&
-      typeof (value as { toHexString?: unknown }).toHexString === 'function')
+    hasToHexString(value)
   );
 }
 
@@ -77,11 +82,8 @@ function toNonNegativeBigInt(value: Numeric): bigint {
     const s = value.trim().replace(/^0X/, '0x');
     if (s.length === 0) throw new TypeError('toHexQuantity: empty string');
     big = BigInt(s);
-  } else if (
-    value != null &&
-    typeof (value as { toHexString?: unknown }).toHexString === 'function'
-  ) {
-    big = BigInt((value as { toHexString(): string }).toHexString());
+  } else if (hasToHexString(value)) {
+    big = BigInt(value.toHexString());
   } else {
     throw new TypeError(`toHexQuantity: unsupported value ${String(value)}`);
   }
