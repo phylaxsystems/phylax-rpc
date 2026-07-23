@@ -7,9 +7,16 @@ import type { ManualAddModalProps } from '../src/ManualAddModal.types';
 
 function acceptsModalImageOptions(_options: ManualAddModalProps['imageOptions']): void {}
 
+// A renderable format is accepted.
 acceptsModalImageOptions({ format: 'auto' });
-// @ts-expect-error Cloudflare's JSON metadata response cannot be rendered by an <img>.
-acceptsModalImageOptions({ format: 'json' });
+
+// Type-level assertion (no suppression directive): Cloudflare's JSON metadata response
+// cannot be rendered by an <img>, so the modal's `format` must exclude 'json'. If 'json'
+// ever became assignable, `JsonFormatExcluded` collapses to `never` and this fails to compile.
+type ModalImageFormat = NonNullable<ManualAddModalProps['imageOptions']>['format'];
+type JsonFormatExcluded = 'json' extends ModalImageFormat ? never : true;
+const _jsonFormatExcluded: JsonFormatExcluded = true;
+void _jsonFormatExcluded;
 
 const DELIVERY_URL =
   'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/303a6ec3-a1d7-4227-5469-5dc8d06a0400/public';

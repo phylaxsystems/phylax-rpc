@@ -64,6 +64,21 @@ describe('PhylaxRpcSwitch', () => {
     expect(await client.isConnectedToPhylax(provider)).toBe(true);
   });
 
+  it('routes the connection check against the configured chain, not hard-coded mainnet', async () => {
+    const l2 = new PhylaxRpcSwitch({ rpcUrl: 'https://rpc.phylax.example', chainId: 8453 });
+    // Wallet is on the configured chain, but the marker is mainnet-only → never `connected`.
+    const onConfigured = new MockProvider()
+      .setHandlers('eth_chainId', () => '0x2105') // 8453
+      .setHandlers('eth_call', () => '0x' + '0'.repeat(63) + '1');
+    expect(await l2.isConnectedToPhylax(onConfigured)).toBe(false);
+
+    // A mainnet wallet must not read as connected for an L2-configured client.
+    const onMainnet = new MockProvider()
+      .setHandlers('eth_chainId', () => '0x1')
+      .setHandlers('eth_call', () => '0x' + '0'.repeat(63) + '1');
+    expect(await l2.isConnectedToPhylax(onMainnet)).toBe(false);
+  });
+
   it('delegates classify', () => {
     expect(client.classify({ rdns: WALLET_RDNS.zerion, userAgent: 'Macintosh Chrome' }).id).toBe('zerion');
   });

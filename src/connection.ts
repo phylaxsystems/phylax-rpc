@@ -64,7 +64,7 @@ export async function checkPhylaxRouting(
 ): Promise<RoutingCheck> {
   let chainId: unknown;
   try {
-    chainId = await request<unknown>(provider, 'eth_chainId');
+    chainId = await request(provider, 'eth_chainId');
   } catch {
     return 'inconclusive';
   }
@@ -78,7 +78,7 @@ export async function checkPhylaxRouting(
   }
 
   try {
-    const result = await request<unknown>(provider, 'eth_call', [
+    const result = await request(provider, 'eth_call', [
       {
         to: PHYLAX_ROUTING_SIGNAL_V1.registry,
         data: PHYLAX_ROUTING_SIGNAL_V1.callData,

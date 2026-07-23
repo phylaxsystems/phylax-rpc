@@ -160,6 +160,22 @@ describe('detectOffPhylax', () => {
     expect((await detectOffPhylax({ provider: provider2, transaction: tx, config: strict })).status).toBe('reverted');
   });
 
+  it('is stable across repeated calls with a stateful (/g) credibleRevertMatch', async () => {
+    // A `/g` regex carries `lastIndex`; without a reset each identical call would alternate
+    // between matching and not, flipping between off-phylax and reverted.
+    const stateful = resolveConfig({
+      rpcUrl: config.rpcUrl,
+      credibleRevertMatch: /assertion failed/g,
+    });
+    for (let i = 0; i < 3; i++) {
+      const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+        throw errorStringRevert('assertion failed');
+      });
+      const result = await detectOffPhylax({ provider, transaction: tx, config: stateful });
+      expect(result.offPhylax).toBe(true);
+    }
+  });
+
   it('auto-resolves `from` via silent eth_accounts when the tx omits it', async () => {
     const account = '0x' + '33'.repeat(20);
     const provider = new MockProvider()

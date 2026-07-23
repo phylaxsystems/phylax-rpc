@@ -74,7 +74,7 @@ export function buildPreflightParams(
 /** Silently read the connected account (`eth_accounts`), never prompting. */
 async function resolveAccount(provider: Eip1193Provider): Promise<string | undefined> {
   try {
-    const accounts = await request<unknown>(provider, 'eth_accounts');
+    const accounts = await request(provider, 'eth_accounts');
     return Array.isArray(accounts) && typeof accounts[0] === 'string'
       ? accounts[0]
       : undefined;
