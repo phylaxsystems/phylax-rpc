@@ -1,48 +1,28 @@
-import {
-  type AddEthereumChainParameter,
-  buildAddChainParams,
-  manualInstructions,
-  resolveConfig,
-} from './config';
+import { buildAddChainParams, manualInstructions, resolveConfig } from './config';
 import { isConnectedToPhylax } from './connection';
-import { detectOffPhylax, type PreflightMethod } from './detect';
+import { detectOffPhylax } from './detect';
 import { attemptSwitch } from './switch';
-import { toWeb3OnboardChain, type Web3OnboardChain } from './web3onboard';
-import {
-  classifyDetail,
-  classifyWallet,
-  discoverProviders,
-  type ClassifyInput,
-  type DiscoverOptions,
-} from './wallets';
+import { toWeb3OnboardChain } from './web3onboard';
+import { classifyDetail, classifyWallet, discoverProviders } from './wallets';
 import type {
+  AddEthereumChainParameter,
+  ClassifyInput,
+  DetectArgs,
   DetectionResult,
+  DiscoverOptions,
   Eip1193Provider,
   Eip6963ProviderDetail,
-  LooseTransactionRequest,
   ManualInstructions,
   PhylaxRpcConfig,
   ResolvedPhylaxRpcConfig,
+  SwitchArgs,
   SwitchResult,
+  ToWeb3OnboardChainOptions,
   WalletClassification,
+  Web3OnboardChain,
 } from './types';
 
-export interface DetectArgs {
-  provider: Eip1193Provider;
-  transaction: LooseTransactionRequest;
-  method?: PreflightMethod;
-  /** Sender to preflight as when `transaction.from` is absent (silent `eth_accounts` otherwise). */
-  account?: string;
-}
-
-export interface SwitchArgs {
-  provider: Eip1193Provider;
-  wallet: WalletClassification;
-  verifyTransaction?: LooseTransactionRequest;
-  /** Sender for the verify probe when `verifyTransaction` omits `from`. */
-  account?: string;
-  force?: boolean;
-}
+export type { DetectArgs, SwitchArgs } from './types';
 
 /**
  * Headless orchestrator for the Phylax RPC-switch flow.
@@ -112,7 +92,7 @@ export class PhylaxRpcSwitch {
   }
 
   /** A web3-onboard chain config wiring Phylax into `protectedRpcUrl`. */
-  toWeb3OnboardChain(options?: { publicRpcUrl?: string; extra?: Record<string, unknown> }): Web3OnboardChain {
+  toWeb3OnboardChain(options?: ToWeb3OnboardChainOptions): Web3OnboardChain {
     return toWeb3OnboardChain(this.config, options);
   }
 }

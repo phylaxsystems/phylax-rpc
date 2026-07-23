@@ -1,3 +1,6 @@
+import { asChainId, asMilliseconds } from './brands';
+import type { ChainId, Milliseconds } from './types';
+
 /**
  * Selector for Solidity's `Error(string)` (`keccak256("Error(string)")[:4]`).
  *
@@ -12,7 +15,7 @@ export const ERROR_STRING_SELECTOR = '0x08c379a0';
 export const PANIC_SELECTOR = '0x4e487b71';
 
 /** Ethereum mainnet. The Phylax RPC serves chainId 1, which is why the duplicate-network wall exists. */
-export const MAINNET_CHAIN_ID = 1;
+export const MAINNET_CHAIN_ID: ChainId = asChainId(1);
 
 /**
  * Known EIP-6963 `rdns` identifiers for the wallets the spike investigated.
@@ -44,4 +47,4 @@ export const DEFAULT_CHAIN_NAME = 'Ethereum (Phylax)';
 export const DEFAULT_CREDIBLE_REVERT_MATCH = /assertion failed|credible|phylax/i;
 
 /** How long {@link discoverProviders} listens for EIP-6963 announcements, in ms. */
-export const DEFAULT_DISCOVERY_TIMEOUT = 300;
+export const DEFAULT_DISCOVERY_TIMEOUT: Milliseconds = asMilliseconds(300);

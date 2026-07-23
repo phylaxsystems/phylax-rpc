@@ -6,7 +6,7 @@ import {
   normalizeTransaction,
 } from '../src/detect';
 import type { LooseTransactionRequest, TransactionRequest } from '../src/types';
-import { errorStringRevert, MockProvider } from './helpers';
+import { assertStatus, errorStringRevert, firstArg, MockProvider } from './helpers';
 
 const config = resolveConfig({ rpcUrl: 'https://rpc.phylax.example' });
 const tx: TransactionRequest = {
@@ -19,7 +19,7 @@ const tx: TransactionRequest = {
 
 describe('buildPreflightParams', () => {
   it('strips gas and gasLimit', () => {
-    const [obj] = buildPreflightParams(tx, 'eth_estimateGas') as [Record<string, unknown>];
+    const obj = firstArg({ params: buildPreflightParams(tx, 'eth_estimateGas') });
     expect(obj.gas).toBeUndefined();
     expect(obj.gasLimit).toBeUndefined();
     expect(obj.data).toBe('0xdeadbeef');
@@ -91,8 +91,7 @@ describe('detectOffPhylax', () => {
   it('never sends a gas field in the preflight', async () => {
     const provider = new MockProvider().setHandlers('eth_estimateGas', () => '0x1');
     await detectOffPhylax({ provider, transaction: tx, config });
-    const params = provider.callsTo('eth_estimateGas')[0]!.params;
-    const sent = (params as [Record<string, unknown>])[0];
+    const sent = firstArg(provider.callsTo('eth_estimateGas')[0]);
     expect(sent.gas).toBeUndefined();
     expect(sent.gasLimit).toBeUndefined();
   });
@@ -102,7 +101,7 @@ describe('detectOffPhylax', () => {
       throw errorStringRevert('assertion failed');
     });
     const result = await detectOffPhylax({ provider, transaction: tx, config });
-    expect(result.status).toBe('off-phylax');
+    assertStatus(result, 'off-phylax');
     expect(result.offPhylax).toBe(true);
     expect(result.revertReason).toBe('assertion failed');
   });
@@ -120,9 +119,20 @@ describe('detectOffPhylax', () => {
       throw errorStringRevert('ERC20: transfer amount exceeds balance');
     });
     const result = await detectOffPhylax({ provider, transaction: tx, config });
-    expect(result.status).toBe('reverted');
+    assertStatus(result, 'reverted');
     expect(result.offPhylax).toBe(false);
     expect(result.revertReason).toContain('ERC20');
+  });
+
+  it('classifies a Panic/custom-error revert as reverted, not inconclusive', async () => {
+    const panic = '0x4e487b71' + '0'.repeat(63) + '1'; // Panic(0x01)
+    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+      throw Object.assign(new Error('execution reverted'), { data: panic });
+    });
+    const result = await detectOffPhylax({ provider, transaction: tx, config });
+    assertStatus(result, 'reverted');
+    expect(result.offPhylax).toBe(false);
+    expect(result.revertReason).toBeUndefined();
   });
 
   it('is inconclusive when no revert data can be decoded', async () => {
@@ -162,7 +172,7 @@ describe('detectOffPhylax', () => {
     expect(result.status).toBe('on-phylax');
     // Never prompts: only the silent accounts read, never eth_requestAccounts.
     expect(provider.callsTo('eth_requestAccounts')).toHaveLength(0);
-    const sent = (provider.callsTo('eth_estimateGas')[0]!.params as [Record<string, unknown>])[0];
+    const sent = firstArg(provider.callsTo('eth_estimateGas')[0]);
     expect(sent.from).toBe(account);
     expect(sent.value).toBe('0x1');
   });
@@ -178,7 +188,7 @@ describe('detectOffPhylax', () => {
       config,
     });
     expect(result.status).toBe('on-phylax');
-    const sent = (provider.callsTo('eth_estimateGas')[0]!.params as [Record<string, unknown>])[0];
+    const sent = firstArg(provider.callsTo('eth_estimateGas')[0]);
     expect(sent.from).toBe(account);
   });
 
@@ -186,7 +196,7 @@ describe('detectOffPhylax', () => {
     const account = '0x' + '44'.repeat(20);
     const provider = new MockProvider().setHandlers('eth_estimateGas', () => '0x5208');
     await detectOffPhylax({ provider, transaction: { to: '0x0' }, account, config });
-    const sent = (provider.callsTo('eth_estimateGas')[0]!.params as [Record<string, unknown>])[0];
+    const sent = firstArg(provider.callsTo('eth_estimateGas')[0]);
     expect(sent.from).toBe(account);
     expect(provider.callsTo('eth_accounts')).toHaveLength(0);
   });
@@ -194,8 +204,10 @@ describe('detectOffPhylax', () => {
   it('is inconclusive (not thrown) when no sender can be resolved', async () => {
     const provider = new MockProvider().setHandlers('eth_accounts', () => []);
     const result = await detectOffPhylax({ provider, transaction: { to: '0x0' }, config });
-    expect(result.status).toBe('inconclusive');
-    expect((result.error as Error).message).toMatch(/no `from`/);
+    assertStatus(result, 'inconclusive');
+    const error = result.error;
+    expect(error).toBeInstanceOf(Error);
+    if (error instanceof Error) expect(error.message).toMatch(/no `from`/);
     expect(provider.callsTo('eth_estimateGas')).toHaveLength(0);
   });
 });

@@ -16,8 +16,7 @@ describe('PhylaxRpcSwitch', () => {
   });
 
   it('throws without an rpcUrl', () => {
-    // @ts-expect-error intentionally invalid
-    expect(() => new PhylaxRpcSwitch({})).toThrow(/rpcUrl/);
+    expect(() => new PhylaxRpcSwitch({ rpcUrl: '' })).toThrow(/rpcUrl/);
   });
 
   it('builds add-chain params', () => {

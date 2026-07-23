@@ -23,6 +23,11 @@ describe('extractRevertData', () => {
     ).toBe(data);
   });
 
+  it('reads the non-enumerable message of a native Error', () => {
+    // `Error.message` is non-enumerable, so an Object.values walk alone would miss it.
+    expect(extractRevertData(new Error(`execution reverted, data: ${data}`))).toBe(data);
+  });
+
   it('prefers the Error(string) blob over an address-shaped hex', () => {
     const addr = '0x' + '11'.repeat(20);
     expect(extractRevertData({ from: addr, data })).toBe(data);
@@ -50,8 +55,15 @@ describe('isUserRejection', () => {
     expect(isUserRejection({ message: 'User denied transaction signature' })).toBe(true);
   });
 
+  it('matches a rejection wrapped under cause/error', () => {
+    expect(isUserRejection({ message: 'request failed', cause: { code: 4001 } })).toBe(true);
+    expect(isUserRejection({ error: { code: 'ACTION_REJECTED' } })).toBe(true);
+  });
+
   it('does not match unrelated errors', () => {
     expect(isUserRejection({ code: -32603 })).toBe(false);
     expect(isUserRejection(new Error('boom'))).toBe(false);
+    // A bare "denied" in a contract revert message must not read as a user rejection.
+    expect(isUserRejection({ message: 'transfer denied by contract guard' })).toBe(false);
   });
 });

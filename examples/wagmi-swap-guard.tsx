@@ -7,6 +7,8 @@
  * `connectedWallet` (used here via the hook's `account` argument) resolves the
  * connected provider + classification directly from `useAccount()`.
  *
+ * All imports use the published scope, `@phylaxsystems/phylax-rpc`.
+ *
  * Two things to note:
  *  1. `transaction` is a LooseTransactionRequest — bigint `value`, no `from`. The
  *     library coerces the numeric fields and auto-resolves the sender via a silent
@@ -17,7 +19,7 @@
  * Not wired to a bundler in this repo; it's a copy-paste reference for a wagmi app.
  */
 import { useAccount } from 'wagmi';
-import { usePhylaxRpcSwitch, ManualAddModal } from 'phylax-rpc/react';
+import { usePhylaxRpcSwitch, ManualAddModal } from '@phylaxsystems/phylax-rpc/react';
 import { useState } from 'react';
 
 const PHYLAX = { rpcUrl: 'https://rpc.phylax.systems' };

@@ -3,83 +3,70 @@ export {
   DEFAULT_CREDIBLE_REVERT_MATCH,
   DEFAULT_DISCOVERY_TIMEOUT,
   DEFAULT_NATIVE_CURRENCY,
-  ERROR_STRING_SELECTOR,
   MAINNET_CHAIN_ID,
-  PANIC_SELECTOR,
   WALLET_RDNS,
 } from './constants';
 
-export { decodeErrorString, isErrorStringRevert } from './abi';
-export { getSelector, hexToUtf8, normalizeHex, toHexChainId, toHexQuantity } from './hex';
-export {
-  collectHexStrings,
-  extractRevertData,
-  isUserRejection,
-  request,
-} from './eip1193';
+export { isConnectedToPhylax, PHYLAX_ROUTING_SIGNAL_V1 } from './connection';
 
-export {
-  isConnectedToPhylax,
-  PHYLAX_ROUTING_SIGNAL_V1,
-} from './connection';
-
-export {
-  buildPreflightParams,
-  detectOffPhylax,
-  normalizeTransaction,
-  type DetectOptions,
-  type PreflightMethod,
-} from './detect';
+export { detectOffPhylax } from './detect';
 
 export {
   classifyDetail,
   classifyWallet,
   discoverProviders,
   supportsAssistedSwitch,
-  type ClassifyInput,
-  type DiscoverOptions,
-  type DiscoveryTarget,
 } from './wallets';
 
-export { attemptSwitch, type SwitchOptions } from './switch';
+export { attemptSwitch } from './switch';
 
-export {
-  buildAddChainParams,
-  manualInstructions,
-  resolveConfig,
-  type AddEthereumChainParameter,
-} from './config';
+export { toWeb3OnboardChain } from './web3onboard';
 
-export {
-  toWeb3OnboardChain,
-  type ToWeb3OnboardChainOptions,
-  type Web3OnboardChain,
-} from './web3onboard';
-
-export {
-  PhylaxRpcSwitch,
-  type DetectArgs,
-  type SwitchArgs,
-} from './client';
+export { PhylaxRpcSwitch } from './client';
 
 export type {
+  Address,
+  AddEthereumChainParameter,
+  ChainId,
+  ClassifyInput,
+  ConnectedAccountLike,
+  ConnectedWallet,
+  ConnectorLike,
   CredibleRevertMatch,
+  DetectArgs,
+  DetectOptions,
   DetectionResult,
   DetectionStatus,
+  DiscoverOptions,
+  DiscoveryTarget,
   Eip1193Provider,
   Eip1193RequestArgs,
   Eip6963ProviderDetail,
   Eip6963ProviderInfo,
+  Hex,
+  HexQuantity,
   LooseTransactionRequest,
   ManualInstructions,
+  Milliseconds,
   NativeCurrency,
   Numeric,
   PhylaxRpcConfig,
+  PreflightMethod,
+  RequestFnClient,
   ResolvedPhylaxRpcConfig,
+  RpcMethod,
+  RpcUrl,
+  SendProvider,
+  SwitchArgs,
+  SwitchOptions,
   SwitchOutcome,
   SwitchResult,
+  ToWeb3OnboardChainOptions,
   TransactionRequest,
+  Uuid,
   WalletClassification,
   WalletId,
   WalletPlatform,
+  WalletRdns,
+  Web3OnboardChain,
 } from './types';

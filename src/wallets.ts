@@ -1,5 +1,9 @@
+import { asWalletRdns, isUuid, isWalletRdns } from './brands';
 import { DEFAULT_DISCOVERY_TIMEOUT, WALLET_RDNS } from './constants';
 import type {
+  ClassifyInput,
+  DiscoverOptions,
+  DiscoveryTarget,
   Eip1193Provider,
   Eip6963ProviderDetail,
   WalletClassification,
@@ -7,35 +11,58 @@ import type {
   WalletPlatform,
 } from './types';
 
-/** Event-target surface used for EIP-6963 discovery (defaults to `window`). */
-export interface DiscoveryTarget {
-  addEventListener(type: string, listener: (event: Event) => void): void;
-  removeEventListener(type: string, listener: (event: Event) => void): void;
-  dispatchEvent(event: Event): boolean;
+export type { ClassifyInput, DiscoverOptions, DiscoveryTarget } from './types';
+
+/** Whether `value` structurally satisfies the EIP-1193 provider surface we depend on. */
+export function isEip1193Provider(value: unknown): value is Eip1193Provider {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    // Narrowing an `unknown` member requires one contained cast; the runtime check is real.
+    typeof (value as { request?: unknown }).request === 'function'
+  );
 }
 
-export interface DiscoverOptions {
-  /** How long to listen for announcements, in ms. */
-  timeout?: number;
-  /** Event target to use. Defaults to `globalThis.window`. */
-  target?: DiscoveryTarget;
+/**
+ * Validate an EIP-6963 announcement detail before trusting it. A spoofed or malformed
+ * announcement (missing `rdns`, non-string `icon`, no `provider.request`, …) is rejected
+ * rather than stored, so downstream code never handles unchecked external data.
+ */
+function toValidDetail(detail: unknown): Eip6963ProviderDetail | undefined {
+  if (detail == null || typeof detail !== 'object') return undefined;
+  const info = (detail as { info?: unknown }).info;
+  const provider = (detail as { provider?: unknown }).provider;
+  if (info == null || typeof info !== 'object') return undefined;
+  const { uuid, name, icon, rdns } = info as {
+    uuid?: unknown;
+    name?: unknown;
+    icon?: unknown;
+    rdns?: unknown;
+  };
+  if (
+    !isUuid(uuid) ||
+    typeof name !== 'string' ||
+    typeof icon !== 'string' ||
+    !isWalletRdns(rdns) ||
+    !isEip1193Provider(provider)
+  ) {
+    return undefined;
+  }
+  return { info: { uuid, name, icon, rdns }, provider };
 }
 
 /**
  * Discover injected providers via EIP-6963.
  *
- * Dispatches `eip6963:requestProvider`, collects `eip6963:announceProvider` events for
- * `timeout` ms, and de-duplicates by `info.uuid`. Resolves to `[]` outside a browser.
+ * Dispatches `eip6963:requestProvider`, collects and validates `eip6963:announceProvider`
+ * events for `timeout` ms, and de-duplicates by `info.uuid`. Resolves to `[]` outside a
+ * browser.
  */
 export function discoverProviders(
   options: DiscoverOptions = {},
 ): Promise<Eip6963ProviderDetail[]> {
   const timeout = options.timeout ?? DEFAULT_DISCOVERY_TIMEOUT;
-  const target =
-    options.target ??
-    (typeof globalThis !== 'undefined'
-      ? (globalThis as { window?: DiscoveryTarget }).window
-      : undefined);
+  const target = options.target ?? defaultDiscoveryTarget();
 
   return new Promise((resolve) => {
     if (!target) {
@@ -45,8 +72,8 @@ export function discoverProviders(
 
     const found = new Map<string, Eip6963ProviderDetail>();
     const onAnnounce = (event: Event): void => {
-      const detail = (event as CustomEvent<Eip6963ProviderDetail>).detail;
-      if (detail?.info?.uuid) found.set(detail.info.uuid, detail);
+      const detail = toValidDetail((event as CustomEvent<unknown>).detail);
+      if (detail) found.set(detail.info.uuid, detail);
     };
 
     target.addEventListener('eip6963:announceProvider', onAnnounce);
@@ -57,6 +84,19 @@ export function discoverProviders(
       resolve([...found.values()]);
     }, timeout);
   });
+}
+
+/** Wrap the ambient `window` as a {@link DiscoveryTarget}, or `undefined` outside a browser. */
+function defaultDiscoveryTarget(): DiscoveryTarget | undefined {
+  if (typeof globalThis === 'undefined' || typeof globalThis.window === 'undefined') {
+    return undefined;
+  }
+  const w = globalThis.window;
+  return {
+    addEventListener: (type, listener) => w.addEventListener(type, listener),
+    removeEventListener: (type, listener) => w.removeEventListener(type, listener),
+    dispatchEvent: (event) => w.dispatchEvent(event),
+  };
 }
 
 const RDNS_TO_ID: Record<string, WalletId> = {
@@ -122,17 +162,6 @@ export function supportsAssistedSwitch(id: WalletId, platform: WalletPlatform): 
   );
 }
 
-export interface ClassifyInput {
-  /** A single `rdns`, or wagmi's `readonly string[]` — the first entry is used. */
-  rdns?: string | readonly string[];
-  name?: string;
-  provider?: Eip1193Provider;
-  /** Defaults to `navigator.userAgent` when available. */
-  userAgent?: string;
-  /** Override the heuristic platform detection when the host already knows it. */
-  platform?: WalletPlatform;
-}
-
 /**
  * Classify a wallet from its EIP-6963 `rdns` (preferred) or provider identity flags,
  * resolving the platform and whether the assisted switch path is viable.
@@ -144,14 +173,14 @@ export function classifyWallet(input: ClassifyInput = {}): WalletClassification 
     '';
 
   // wagmi connectors may carry several rdns values; classify on the first.
-  const rdns = typeof input.rdns === 'string' ? input.rdns : input.rdns?.[0];
+  const rawRdns = typeof input.rdns === 'string' ? input.rdns : input.rdns?.[0];
+  const rdns = asWalletRdns(rawRdns);
 
   const id: WalletId = rdns
     ? (RDNS_TO_ID[rdns] ?? idFromProviderFlags(input.provider))
     : idFromProviderFlags(input.provider);
 
-  const platform =
-    input.platform ?? detectPlatform(id, userAgent, rdns != null);
+  const platform = input.platform ?? detectPlatform(id, userAgent, rdns != null);
 
   return {
     id,

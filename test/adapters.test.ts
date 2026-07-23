@@ -24,11 +24,11 @@ describe('wagmi: connectedWallet', () => {
 
     const result = await connectedWallet({ address: account, connector }, DESKTOP_UA);
 
-    expect(result).not.toBeNull();
-    expect(result!.provider).toBe(provider);
-    expect(result!.account).toBe(account);
-    expect(result!.wallet.id).toBe('rabby');
-    expect(result!.wallet.rdns).toBe('io.rabby');
+    if (result === null) throw new Error('expected a connected wallet');
+    expect(result.provider).toBe(provider);
+    expect(result.account).toBe(account);
+    expect(result.wallet.id).toBe('rabby');
+    expect(result.wallet.rdns).toBe('io.rabby');
   });
 
   it('returns null when the connector yields no provider', async () => {
@@ -47,8 +47,9 @@ describe('wagmi: connectedWallet', () => {
 
     const result = await connectedWallet({ address: '0xabc', connector }, DESKTOP_UA);
 
-    expect(result!.wallet.id).toBe('rabby');
-    expect(result!.wallet.rdns).toBe('io.rabby');
+    if (result === null) throw new Error('expected a connected wallet');
+    expect(result.wallet.id).toBe('rabby');
+    expect(result.wallet.rdns).toBe('io.rabby');
   });
 });
 
@@ -93,7 +94,7 @@ describe('ethers: providerFromEthers', () => {
     await provider.request({ method: 'eth_chainId' });
     await provider.request({
       method: 'wallet_switchEthereumChain',
-      params: { chainId: '0x1' } as unknown as unknown[],
+      params: { chainId: '0x1' },
     });
     expect(calls[0]).toEqual({ method: 'eth_chainId', params: [] });
     expect(calls[1]).toEqual({

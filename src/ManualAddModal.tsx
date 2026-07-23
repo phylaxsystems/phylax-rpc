@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import phylaxLogo from './assets/phylax-logo.svg';
 import rabbyLogo from './assets/rabby/logo.svg';
 import rabbyOpenNetwork from './assets/rabby/open-network.jpg';
@@ -6,30 +6,23 @@ import rabbySettings from './assets/rabby/settings.jpg';
 import rabbyModifyRpc from './assets/rabby/modify-rpc.jpg';
 import rabbyEnterRpc from './assets/rabby/enter-rpc.jpg';
 import rabbyEnabled from './assets/rabby/enabled.jpg';
+import type {
+  ConnectionVerificationState,
+  ManualAddModalProps,
+} from './ManualAddModal.types';
 
-export interface ManualAddModalProps {
-  /** Whether the modal is visible. */
-  open: boolean;
-  /** Called when the user dismisses the modal (close button, overlay click, Escape). */
-  onClose: () => void;
-  /**
-   * Name of the connected wallet (e.g. "MetaMask", "Rabby"), used in the heading.
-   * Optional — falls back to a generic label.
-   */
-  walletName?: string;
-  /** The Phylax RPC URL the user needs to add. Shown for reference. */
-  rpcUrl?: string;
-  /**
-   * Silent wallet-backed verification invoked when the modal opens, every three seconds
-   * while visible, and when the window regains focus. Return `true` only when the
-   * connected wallet is confirmed to be routing through Phylax.
-   */
-  verifyConnection?: () => boolean | Promise<boolean>;
+export type { ManualAddModalProps } from './ManualAddModal.types';
+
+/** `CSSProperties` that also permits `--custom` variables without a cast. */
+interface StyleWithVars extends CSSProperties {
+  [key: `--${string}`]: string | number | undefined;
 }
 
-type ConnectionVerificationState = 'idle' | 'checking' | 'connected' | 'disconnected';
-
 const CONNECTION_VERIFICATION_INTERVAL_MS = 3_000;
+
+// Monotonic per-instance id source (React 17-compatible; `useId` is 18+).
+let instanceCounter = 0;
+const nextInstanceId = (): string => `phylax-manual-add-${(instanceCounter += 1)}`;
 
 const RABBY_STEPS = [
   {
@@ -1268,6 +1261,45 @@ function ConnectionStatusIcon({ state }: { state: ConnectionVerificationState })
   );
 }
 
+// Ref-counted shared stylesheet. Every open instance references one `<style>` element in
+// `<head>` rather than rendering its own, so N modals inject the CSS once, not N times.
+let sharedStyleEl: HTMLStyleElement | null = null;
+let sharedStyleRefCount = 0;
+
+/**
+ * Inject the modal stylesheet once for the lifetime of any mounted instance. A CSP `nonce`
+ * can be supplied so the element is allowed under a strict `style-src` policy.
+ */
+function useSharedStylesheet(active: boolean, nonce?: string): void {
+  useEffect(() => {
+    if (!active || typeof document === 'undefined') return;
+    if (!sharedStyleEl) {
+      sharedStyleEl = document.createElement('style');
+      sharedStyleEl.setAttribute('data-phylax-wallet-guide', '');
+      if (nonce) sharedStyleEl.setAttribute('nonce', nonce);
+      sharedStyleEl.textContent = MODAL_STYLES;
+      document.head.appendChild(sharedStyleEl);
+    }
+    sharedStyleRefCount += 1;
+    return () => {
+      sharedStyleRefCount -= 1;
+      if (sharedStyleRefCount <= 0 && sharedStyleEl) {
+        sharedStyleEl.remove();
+        sharedStyleEl = null;
+        sharedStyleRefCount = 0;
+      }
+    };
+  }, [active, nonce]);
+}
+
+/** Trap Tab focus within `container`; returns the tabbable elements in order. */
+function tabbableWithin(container: HTMLElement): HTMLElement[] {
+  const nodes = container.querySelectorAll<HTMLElement>(
+    'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+  );
+  return Array.from(nodes).filter((el) => el.offsetParent !== null || el === container);
+}
+
 /**
  * Fallback modal for the **manual** RPC-add path.
  *
@@ -1284,8 +1316,15 @@ export function ManualAddModal({
   walletName,
   rpcUrl,
   verifyConnection,
-}: ManualAddModalProps) {
+  styleNonce,
+}: ManualAddModalProps): ReactElement | null {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(true);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const instanceIdRef = useRef<string>('');
+  if (!instanceIdRef.current) instanceIdRef.current = nextInstanceId();
+  const titleId = `${instanceIdRef.current}-title`;
+  const descriptionId = `${instanceIdRef.current}-description`;
   const verifyConnectionRef = useRef(verifyConnection);
   const verificationRunRef = useRef(0);
   const verificationPendingRunRef = useRef<number | null>(null);
@@ -1300,6 +1339,23 @@ export function ManualAddModal({
 
   verifyConnectionRef.current = verifyConnection;
 
+  useSharedStylesheet(open, styleNonce);
+
+  // Track mount status so awaited completions can bail after unmount.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Invalidate any in-flight verification when the verifier identity changes, so a stale
+  // result from a superseded `verifyConnection` can't land on the modal.
+  useEffect(() => {
+    verificationRunRef.current += 1;
+    verificationPendingRunRef.current = null;
+  }, [verifyConnection]);
+
   const runVerification = useCallback(async (showChecking = true) => {
     const verifier = verifyConnectionRef.current;
     if (!verifier) {
@@ -1313,11 +1369,13 @@ export function ManualAddModal({
     if (showChecking) setVerificationState('checking');
     try {
       const connected = await verifier();
-      if (run === verificationRunRef.current) {
+      if (mountedRef.current && run === verificationRunRef.current) {
         setVerificationState(connected ? 'connected' : 'disconnected');
       }
     } catch {
-      if (run === verificationRunRef.current) setVerificationState('disconnected');
+      if (mountedRef.current && run === verificationRunRef.current) {
+        setVerificationState('disconnected');
+      }
     } finally {
       if (verificationPendingRunRef.current === run) {
         verificationPendingRunRef.current = null;
@@ -1326,13 +1384,51 @@ export function ManualAddModal({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || typeof document === 'undefined') return;
+
+    // Remember the element that had focus so it can be restored on close.
+    const opener = document.activeElement;
+    openerRef.current = opener instanceof HTMLElement ? opener : null;
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      // Focus trap: keep Tab / Shift+Tab cycling inside the dialog.
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusables = tabbableWithin(dialog);
+      if (focusables.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const activeEl = document.activeElement;
+      if (event.shiftKey && (activeEl === first || activeEl === dialog)) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && activeEl === last) {
+        event.preventDefault();
+        first?.focus();
+      }
     };
+
     window.addEventListener('keydown', onKeyDown);
+    // Lock background scroll while the modal owns the viewport.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     dialogRef.current?.focus();
-    return () => window.removeEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      // Restore focus to whatever opened the modal.
+      openerRef.current?.focus();
+    };
   }, [open, onClose]);
 
   // Re-select the detected wallet each time the modal is opened. Consumers can still
@@ -1398,21 +1494,27 @@ export function ManualAddModal({
               title: 'Ready to verify',
               detail: 'Save the endpoint in your wallet, then return here.',
             };
-  const guideTheme = activeGuide
+  const guideTheme: StyleWithVars | undefined = activeGuide
     ? {
         '--wallet-accent': activeGuide.accent,
         '--wallet-accent-strong': activeGuide.accentStrong,
         '--wallet-accent-soft': activeGuide.accentSoft,
-      } as CSSProperties
+      }
+    : undefined;
+  const stepperStyle: StyleWithVars | undefined = activeGuide
+    ? {
+        gridTemplateColumns: `repeat(${activeGuide.steps.length}, minmax(0, 1fr))`,
+        '--step-edge': `${50 / activeGuide.steps.length}%`,
+      }
     : undefined;
 
   const copyRpcUrl = async () => {
     if (!rpcUrl || !navigator.clipboard) return;
     try {
       await navigator.clipboard.writeText(rpcUrl);
-      setCopied(true);
+      if (mountedRef.current) setCopied(true);
     } catch {
-      setCopied(false);
+      if (mountedRef.current) setCopied(false);
     }
   };
 
@@ -1442,15 +1544,14 @@ export function ManualAddModal({
 
   return (
     <div className="phylax-wallet-guide" role="presentation" onMouseDown={onClose}>
-      <style>{MODAL_STYLES}</style>
       <div
         ref={dialogRef}
         className="phylax-wallet-guide__dialog"
         style={guideTheme}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="phylax-manual-add-title"
-        aria-describedby="phylax-manual-add-description"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
         tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
       >
@@ -1520,12 +1621,12 @@ export function ManualAddModal({
               {activeGuide ? <img src={activeGuide.logo} alt="" /> : <WalletIcon />}
               {activeGuide?.name ?? 'Manual setup'}
             </p>
-            <h2 id="phylax-manual-add-title">
+            <h2 id={titleId}>
               {verificationState === 'connected'
                 ? 'Connected to Phylax'
                 : activeGuide?.heading ?? `Add Phylax to ${wallet}`}
             </h2>
-            <p id="phylax-manual-add-description">
+            <p id={descriptionId}>
               {verificationState === 'connected'
                 ? 'Your wallet is already routing Ethereum requests through the Phylax RPC.'
                 : activeGuide?.description
@@ -1565,10 +1666,7 @@ export function ManualAddModal({
               <nav
                 className="phylax-wallet-guide__stepper"
                 aria-label={`${activeGuide.name} setup progress`}
-                style={{
-                  gridTemplateColumns: `repeat(${activeGuide.steps.length}, minmax(0, 1fr))`,
-                  '--step-edge': `${50 / activeGuide.steps.length}%`,
-                } as CSSProperties}
+                style={stepperStyle}
               >
                 <span className="phylax-wallet-guide__stepper-track" />
                 <span

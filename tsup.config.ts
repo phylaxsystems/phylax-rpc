@@ -22,6 +22,7 @@ export default defineConfig([
     clean: true,
     entry: {
       index: 'src/index.ts',
+      advanced: 'src/advanced.ts',
       wagmi: 'src/wagmi.ts',
       viem: 'src/viem.ts',
       ethers: 'src/ethers.ts',

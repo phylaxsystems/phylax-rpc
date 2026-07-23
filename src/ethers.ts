@@ -1,19 +1,13 @@
-import type { Eip1193Provider } from './types';
+import type { Eip1193Provider, SendProvider } from './types';
 
-/**
- * Structural mirror of an ethers v6 `BrowserProvider`'s `send` method. Defined locally so
- * the adapter carries no runtime dependency on `ethers`.
- */
-export interface SendProvider {
-  send(method: string, params: unknown[]): Promise<unknown>;
-}
+export type { SendProvider } from './types';
 
 /**
  * Wrap an ethers v6 `BrowserProvider` as an {@link Eip1193Provider} for `detect`/`switch`.
  *
  * ```ts
  * import { BrowserProvider } from 'ethers';
- * import { providerFromEthers } from 'phylax-rpc/ethers';
+ * import { providerFromEthers } from '@phylaxsystems/phylax-rpc/ethers';
  * const provider = providerFromEthers(new BrowserProvider(window.ethereum));
  * ```
  *
