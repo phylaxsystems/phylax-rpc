@@ -22,7 +22,8 @@ const CONNECTION_VERIFICATION_INTERVAL_MS = 3_000;
 // to a monotonic per-instance counter. That counter is NOT SSR-safe — the module-level value
 // advances across every server request while each browser starts from zero — so React 17 apps
 // that server-render this modal should pass an explicit `id` prop to keep ARIA ids stable.
-const useReactId: undefined | (() => string) = (React as { useId?: () => string }).useId;
+const useReactId: undefined | (() => string) =
+  typeof React.useId === 'function' ? React.useId : undefined;
 
 let instanceCounter = 0;
 const nextInstanceId = (): string => `phylax-manual-add-${(instanceCounter += 1)}`;

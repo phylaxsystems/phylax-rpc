@@ -1,6 +1,6 @@
 import { isHex } from './brands';
 import { isObject, readProp } from './guards';
-import { ERROR_STRING_SELECTOR } from './constants';
+import { ERROR_STRING_SELECTOR, PANIC_SELECTOR } from './constants';
 import type { Eip1193Provider, Hex, RpcMethod } from './types';
 
 /**
@@ -51,22 +51,40 @@ function knownValues(node: unknown): unknown[] {
  * transaction hashes, addresses, and chain IDs from being classified as revert data.
  */
 export function collectHexStrings(error: unknown): string[] {
-  const out: string[] = [];
+  return collectHexCandidates(error).map((candidate) => candidate.value);
+}
+
+/**
+ * A collected hex string plus where it was found. `structured` is true when the string was
+ * reached through a `data` property — the field providers use for actual ABI revert data —
+ * and false when it was scraped out of a free-text field (`message`, `reason`, `body`, …),
+ * where any hex the provider happens to echo (hashes, addresses, calldata) can appear.
+ */
+interface HexCandidate {
+  value: string;
+  structured: boolean;
+}
+
+function collectHexCandidates(error: unknown): HexCandidate[] {
+  const out: HexCandidate[] = [];
   const seen = new Set<object>();
-  const walk = (node: unknown, depth: number): void => {
+  const walk = (node: unknown, depth: number, structured: boolean): void => {
     if (node == null || depth > 8) return;
     if (typeof node === 'string') {
       const matches = node.match(/0x[0-9a-fA-F]+(?![0-9A-Za-z])/g);
-      if (matches) out.push(...matches);
+      if (matches) out.push(...matches.map((value) => ({ value, structured })));
       return;
     }
     if (typeof node === 'object') {
       if (seen.has(node)) return;
       seen.add(node);
-      for (const value of knownValues(node)) walk(value, depth + 1);
+      for (const key of KNOWN_ERROR_KEYS) {
+        const value = readProp(node, key);
+        if (value !== undefined) walk(value, depth + 1, key === 'data');
+      }
     }
   };
-  walk(error, 0);
+  walk(error, 0, false);
   return out;
 }
 
@@ -89,15 +107,34 @@ function isAbiRevertShape(value: string): boolean {
 }
 
 /**
+ * Selectors that unambiguously mark a hex blob as revert data: Solidity's `Error(string)`
+ * and `Panic(uint256)`. Only blobs starting with one of these are trusted when found inside
+ * a free-text field, because ordinary calldata echoed into an error message (say, an ERC-20
+ * `transfer`) is also `4 + 32·n` bytes and would otherwise pass the shape check.
+ */
+const KNOWN_REVERT_SELECTORS = [ERROR_STRING_SELECTOR, PANIC_SELECTOR] as const;
+
+function hasKnownRevertSelector(value: string): boolean {
+  const lower = value.toLowerCase();
+  return KNOWN_REVERT_SELECTORS.some((selector) => lower.startsWith(selector));
+}
+
+/**
  * Extract revert `data` from a thrown provider error.
  *
  * Prefers a hex blob carrying the `Error(string)` selector; otherwise returns the longest
  * value shaped like ABI revert data (a 4-byte selector followed by whole 32-byte words).
+ * Shape alone is not enough for hex scraped out of free-text fields — echoed calldata has
+ * the same shape — so text-sourced blobs must additionally carry a known revert selector,
+ * while blobs from structured `data` fields are accepted with any selector (custom errors).
  */
 export function extractRevertData(error: unknown): Hex | undefined {
-  const candidates = collectHexStrings(error).filter(
-    (value): value is Hex => isHex(value) && isAbiRevertShape(value),
-  );
+  const candidates: Hex[] = [];
+  for (const { value, structured } of collectHexCandidates(error)) {
+    if (!isHex(value) || !isAbiRevertShape(value)) continue;
+    if (!structured && !hasKnownRevertSelector(value)) continue;
+    candidates.push(value);
+  }
   const withSelector = candidates.find((value) =>
     value.toLowerCase().startsWith(ERROR_STRING_SELECTOR),
   );

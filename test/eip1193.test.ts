@@ -57,6 +57,25 @@ describe('extractRevertData', () => {
     expect(extractRevertData({ data: '0x' + '11'.repeat(20) })).toBeUndefined();
   });
 
+  it('ignores echoed calldata in a free-text message', () => {
+    // An ERC-20 `transfer(address,uint256)` call is 4 + 2·32 bytes — the same shape as ABI
+    // revert data. When a provider echoes it inside a network-error message it must not be
+    // read as a revert; only structured `data` fields may carry arbitrary selectors.
+    const calldata = '0xa9059cbb' + '11'.repeat(12) + '22'.repeat(20) + '00'.repeat(31) + '01';
+    expect(
+      extractRevertData(new Error(`failed to send transaction with input ${calldata}`)),
+    ).toBeUndefined();
+    expect(extractRevertData({ reason: `input ${calldata} rejected` })).toBeUndefined();
+    // The same blob in a structured `data` field is a custom error and is accepted.
+    expect(extractRevertData({ data: calldata })).toBe(calldata);
+  });
+
+  it('accepts known revert selectors even inside a message string', () => {
+    const panic = '0x4e487b71' + '00'.repeat(31) + '11';
+    expect(extractRevertData({ message: `execution reverted: ${panic}` })).toBe(panic);
+    expect(extractRevertData({ message: `execution reverted, data: ${data}` })).toBe(data);
+  });
+
   it('accepts ABI-word-aligned payloads (bare selector, Panic)', () => {
     // 4-byte custom-error selector (n = 0) and a Panic(uint256) (selector + one 32-byte word).
     const selector = '0x12345678';
