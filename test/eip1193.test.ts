@@ -42,6 +42,29 @@ describe('extractRevertData', () => {
     ).toBeUndefined();
   });
 
+  it('ignores a transaction hash embedded in a provider message', () => {
+    // A network error like `transaction 0x… not found` carries a 32-byte hash in `message`
+    // (a walked field). Its byte length is not `4 + 32·n`, so it must not be read as revert
+    // data — otherwise a plain network failure is misclassified as a contract revert.
+    const hash = '0x' + 'ab'.repeat(32);
+    expect(
+      extractRevertData(new Error(`transaction ${hash} not found`)),
+    ).toBeUndefined();
+    expect(extractRevertData({ data: hash })).toBeUndefined();
+  });
+
+  it('ignores an address-shaped hex in a walked field', () => {
+    expect(extractRevertData({ data: '0x' + '11'.repeat(20) })).toBeUndefined();
+  });
+
+  it('accepts ABI-word-aligned payloads (bare selector, Panic)', () => {
+    // 4-byte custom-error selector (n = 0) and a Panic(uint256) (selector + one 32-byte word).
+    const selector = '0x12345678';
+    const panic = '0x4e487b71' + '00'.repeat(31) + '01';
+    expect(extractRevertData({ data: selector })).toBe(selector);
+    expect(extractRevertData({ data: panic })).toBe(panic);
+  });
+
   it('rejects hex values too short or malformed to be ABI revert data', () => {
     expect(extractRevertData({ data: '0x1' })).toBeUndefined();
     expect(extractRevertData({ data: '0x1234567' })).toBeUndefined();

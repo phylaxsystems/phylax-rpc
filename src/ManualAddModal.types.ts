@@ -32,6 +32,13 @@ export interface ManualAddModalProps {
    */
   readonly verifyConnection?: () => boolean | Promise<boolean>;
   /**
+   * Base id for the dialog's ARIA relationships (`aria-labelledby`/`aria-describedby`).
+   * Optional. When omitted, React 18's `useId` supplies a server/client-stable value; on
+   * React 17 the fallback is a client-only counter, so pass an explicit `id` if you
+   * server-render this modal on React 17 to avoid a hydration mismatch.
+   */
+  readonly id?: string;
+  /**
    * CSP nonce applied to the injected `<style>` element. Set this when the host page runs
    * a strict `style-src` policy so the modal's stylesheet is allowed.
    *

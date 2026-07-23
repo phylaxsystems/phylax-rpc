@@ -8,7 +8,6 @@ import {
 } from '../src/react';
 import type {
   ConnectedAccountLike,
-  Eip1193Provider,
   Eip6963ProviderDetail,
   PhylaxRpcConfig,
 } from '../src/types';
@@ -114,7 +113,7 @@ describe('usePhylaxRpcSwitch', () => {
     const uuid = '00000000-0000-4000-8000-000000000001';
     const rdns = 'example.latest';
     if (!isUuid(uuid) || !isWalletRdns(rdns)) throw new Error('invalid test provider info');
-    const latest = [{ provider: {} as Eip1193Provider, info: {
+    const latest = [{ provider: { request: () => Promise.reject(new Error('unused')) }, info: {
       uuid,
       name: 'Latest',
       icon: 'data:image/svg+xml,<svg/>',

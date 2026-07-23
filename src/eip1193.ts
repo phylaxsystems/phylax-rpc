@@ -71,14 +71,32 @@ export function collectHexStrings(error: unknown): string[] {
 }
 
 /**
+ * Whether a hex string is shaped like ABI-encoded revert data: a 4-byte selector followed
+ * by zero or more 32-byte words (byte length `4 + 32·n`).
+ *
+ * This rejects hex that is well-formed but cannot be a revert: a 32-byte transaction hash,
+ * a 20-byte address, or echoed calldata of a non-conforming length. Such values routinely
+ * appear inside a provider's free-text `message` (e.g. `transaction 0x… not found`), and
+ * without this shape check a plain network error would be mis-read as a contract revert and
+ * downgraded from `inconclusive` to `reverted`. Every real ABI payload the detector cares
+ * about — `Error(string)`, `Panic(uint256)`, and custom errors (including a bare selector,
+ * `n = 0`) — is word-aligned and therefore satisfies this, while a hash (28 bytes past the
+ * selector) or address (16 bytes past it) never does.
+ */
+function isAbiRevertShape(value: string): boolean {
+  const byteLength = (value.length - 2) / 2;
+  return byteLength >= 4 && (byteLength - 4) % 32 === 0;
+}
+
+/**
  * Extract revert `data` from a thrown provider error.
  *
  * Prefers a hex blob carrying the `Error(string)` selector; otherwise returns the longest
- * value shaped like ABI revert data (a 4-byte selector followed by whole bytes).
+ * value shaped like ABI revert data (a 4-byte selector followed by whole 32-byte words).
  */
 export function extractRevertData(error: unknown): Hex | undefined {
   const candidates = collectHexStrings(error).filter(
-    (value): value is Hex => value.length >= 10 && isHex(value),
+    (value): value is Hex => isHex(value) && isAbiRevertShape(value),
   );
   const withSelector = candidates.find((value) =>
     value.toLowerCase().startsWith(ERROR_STRING_SELECTOR),

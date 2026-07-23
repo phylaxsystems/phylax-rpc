@@ -1,4 +1,5 @@
 import { expect } from 'vitest';
+import { isObject } from '../src/guards';
 import type {
   DetectionResult,
   Eip1193Provider,
@@ -35,11 +36,9 @@ export function userRejection(): unknown {
 export function firstArg(call: { params: unknown } | undefined): Record<string, unknown> {
   if (!call) throw new Error('expected a recorded call');
   const { params } = call;
-  if (!Array.isArray(params) || params[0] == null || typeof params[0] !== 'object') {
-    throw new Error('expected an object as the first param');
-  }
-  // Guarded narrowing of a checked `unknown`, contained to this test helper.
-  return params[0] as Record<string, unknown>;
+  const first = Array.isArray(params) ? params[0] : undefined;
+  if (!isObject(first)) throw new Error('expected an object as the first param');
+  return first;
 }
 
 /** Assert (and narrow) a {@link DetectionResult} to a specific status. */

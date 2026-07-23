@@ -65,13 +65,12 @@ describe('buildCloudflareImageUrl', () => {
     [{ fit: 'contain,quality=1' }, /fit/],
     [{ quality: 'maximum' }, /quality/],
     [{ format: 'png,width=1' }, /format/],
-  ])('rejects invalid runtime enum values', (options, message) => {
-    expect(() =>
-      buildCloudflareImageUrl(
-        DELIVERY_URL,
-        options as unknown as CloudflareImageOptions,
-      ),
-    ).toThrow(message);
+  ])('rejects invalid runtime enum values', (invalid, message) => {
+    // Model an untyped JS caller passing a value outside the option's literal union: assign
+    // it onto a typed options object at runtime (no assertion) and assert it is rejected.
+    const options: CloudflareImageOptions = {};
+    Object.assign(options, invalid);
+    expect(() => buildCloudflareImageUrl(DELIVERY_URL, options)).toThrow(message);
   });
 
   it.each([

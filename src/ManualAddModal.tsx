@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import phylaxLogo from './assets/phylax-logo.svg';
 import rabbyLogo from './assets/rabby/logo.svg';
@@ -16,7 +17,13 @@ interface StyleWithVars extends CSSProperties {
 
 const CONNECTION_VERIFICATION_INTERVAL_MS = 3_000;
 
-// Monotonic per-instance id source (React 17-compatible; `useId` is 18+).
+// React 18's `useId` produces ids that match between the server and client render, so it is
+// preferred whenever present. It is absent on React 17 (a supported peer), where we fall back
+// to a monotonic per-instance counter. That counter is NOT SSR-safe — the module-level value
+// advances across every server request while each browser starts from zero — so React 17 apps
+// that server-render this modal should pass an explicit `id` prop to keep ARIA ids stable.
+const useReactId: undefined | (() => string) = (React as { useId?: () => string }).useId;
+
 let instanceCounter = 0;
 const nextInstanceId = (): string => `phylax-manual-add-${(instanceCounter += 1)}`;
 
@@ -1341,13 +1348,20 @@ export function ManualAddModal({
   imageOptions,
   verifyConnection,
   styleNonce,
+  id,
 }: ManualAddModalProps): ReactElement | null {
   const dialogRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
+  // Base id for the dialog's ARIA relationships. Prefer a caller-supplied `id`, then React
+  // 18's SSR-stable `useId`, and only fall back to the per-instance counter on React 17
+  // without an explicit id (client-only there; see `useReactId`). `useReactId` is either
+  // always defined or always undefined for a given React version, so the hook order is stable.
+  const reactId = useReactId?.();
   const instanceIdRef = useRef<string>('');
-  if (!instanceIdRef.current) instanceIdRef.current = nextInstanceId();
-  const titleId = `${instanceIdRef.current}-title`;
-  const descriptionId = `${instanceIdRef.current}-description`;
+  if (!instanceIdRef.current) instanceIdRef.current = id ?? reactId ?? nextInstanceId();
+  const baseId = id ?? instanceIdRef.current;
+  const titleId = `${baseId}-title`;
+  const descriptionId = `${baseId}-description`;
   const verifyConnectionRef = useRef(verifyConnection);
   const verificationRunRef = useRef(0);
   const verificationPendingRunRef = useRef<number | null>(null);
