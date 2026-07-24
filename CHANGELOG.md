@@ -1,5 +1,11 @@
 # @phylax-systems/phylax-rpc
 
+## 0.1.1
+
+### Patch Changes
+
+- [#10](https://github.com/phylaxsystems/phylax-rpc/pull/10) [`c413047`](https://github.com/phylaxsystems/phylax-rpc/commit/c4130478f22c588303208cabfda8213bcbdd5c9a) Thanks [@makemake-kbo](https://github.com/makemake-kbo)! - Correct the npm scope to `@phylax-systems` across the package name, import paths, and documentation. The npm org uses a hyphen (`@phylax-systems`) even though the GitHub org does not (`phylaxsystems`).
+
 ## 0.1.0
 
 ### Minor Changes
