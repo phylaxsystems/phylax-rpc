@@ -57,45 +57,39 @@ const RABBY_STEPS = [
   },
 ] as const;
 
-// TODO: replace each `image` with its Cloudflare Images delivery URL once the labelled
-// screenshots are uploaded. Source files, in step order:
-//   rainbow-01-open-wallet.png       rainbow-05-add-rpc-endpoint.png
-//   rainbow-02-open-settings.png     rainbow-06-paste-phylax-url.png
-//   rainbow-03-open-networks.png     rainbow-07-confirm-active.png
-//   rainbow-04-select-ethereum.png
 const RAINBOW_STEPS = [
   {
-    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-01/public',
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/51f15724-6524-40ca-5e9e-c3959e3ef000/w=800',
     title: 'Open Rainbow',
     text: 'Open the Rainbow extension. Your Ethereum balance is on the home screen — you will not be leaving Ethereum.',
   },
   {
-    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-02/public',
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/49f007a1-ca85-4ce5-f4db-65bc183c3c00/w=800',
     title: 'Open Settings',
     text: 'Select the three dots in the top right, then choose Settings.',
   },
   {
-    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-03/public',
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/bce42398-c7c8-4ad4-deed-c4bbe7229500/w=800',
     title: 'Open Networks',
     text: 'In Settings, select Networks to see every chain Rainbow is configured for.',
   },
   {
-    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-04/public',
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/bce42398-c7c8-4ad4-deed-c4bbe7229500/w=800',
     title: 'Select Ethereum',
     text: 'Choose Ethereum from the network list. This opens its RPC endpoints without changing the network.',
   },
   {
-    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-05/public',
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/893da6ce-2d1a-4b0c-4d79-9feec296c000/w=800',
     title: 'Add an RPC endpoint',
     text: 'Under RPC Endpoints, select Add RPC Endpoint. Rainbow’s own endpoint stays in the list as a fallback.',
   },
   {
-    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-06/public',
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/15bc53e9-3743-4cf1-90fb-df59cbcbc600/w=800',
     title: 'Paste the Phylax URL',
     text: 'Paste the Phylax RPC URL, leave Active switched on, then select Add Ethereum RPC.',
   },
   {
-    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-07/public',
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/959eb04b-f81f-4f8a-ac99-04b2b7c05600/w=800',
     title: 'Confirm it is active',
     text: 'Check that the Phylax endpoint appears under Ethereum and is marked Active. Select it if it is not.',
   },
@@ -159,6 +153,21 @@ const guideIdForWallet = (walletName?: string): WalletGuideId => {
     guide.aliases.some((alias) => normalizedName === alias || normalizedName.includes(alias)),
   )?.id ?? 'other';
 };
+
+const preloadedGuideImages = new Set<string>();
+
+function preloadGuideImage(url: string): void {
+  if (typeof Image === 'undefined' || preloadedGuideImages.has(url)) return;
+
+  const image = new Image();
+  preloadedGuideImages.add(url);
+  image.decoding = 'async';
+  image.onerror = () => {
+    // Allow a later attempt if a transient network failure interrupted this preload.
+    preloadedGuideImages.delete(url);
+  };
+  image.src = url;
+}
 
 const MODAL_STYLES = `
   .phylax-wallet-guide,
@@ -559,14 +568,19 @@ const MODAL_STYLES = `
   }
 
   .phylax-wallet-guide__step-name {
+    display: -webkit-box;
     width: 100%;
     margin-top: 7px;
     overflow: hidden;
     color: inherit;
     font-size: 9px;
     font-weight: 650;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.25;
+    min-height: 2.5em;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .phylax-wallet-guide__step-tab--active .phylax-wallet-guide__step-name {
@@ -629,6 +643,12 @@ const MODAL_STYLES = `
     border: 1px solid var(--phylax-border);
     border-radius: 10px;
     box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22), 0 3px 8px rgba(0, 0, 0, 0.12);
+  }
+
+  .phylax-wallet-guide__step-image--rainbow-settings {
+    clip-path: inset(1% 0.75% 1% 1.5% round 10px);
+    background: var(--phylax-subtle);
+    transform: scale(1.04);
   }
 
   .phylax-wallet-guide__step-card {
@@ -1433,8 +1453,13 @@ export function ManualAddModal({
   const currentImageUrl = currentStep
     ? buildCloudflareImageUrl(currentStep.image, imageOptions)
     : undefined;
+  const nextStep = activeGuide?.steps[step + 1];
+  const nextImageUrl = nextStep
+    ? buildCloudflareImageUrl(nextStep.image, imageOptions)
+    : undefined;
   const lastStep = activeGuide ? step === activeGuide.steps.length - 1 : false;
   const hasVerifier = typeof verifyConnection === 'function';
+  const verificationEnabled = hasVerifier && selectedWallet !== 'rainbow';
 
   verifyConnectionRef.current = verifyConnection;
 
@@ -1556,10 +1581,24 @@ export function ManualAddModal({
     setVerificationState('idle');
   }, [open, walletName]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    for (const guide of WALLET_GUIDES) {
+      // Prime the active walkthrough's first transition and the other wallet's opening
+      // image. If the user switches wallets, that guide becomes active and its second
+      // image is primed as well.
+      const preloadCount = guide.id === selectedWallet ? 2 : 1;
+      for (const item of guide.steps.slice(0, preloadCount)) {
+        preloadGuideImage(buildCloudflareImageUrl(item.image, imageOptions));
+      }
+    }
+  }, [imageOptions, open, selectedWallet]);
+
   useEffect(() => setCopied(false), [step]);
 
   useEffect(() => {
-    if (!open || !hasVerifier) {
+    if (!open || !verificationEnabled) {
       verificationRunRef.current += 1;
       verificationPendingRunRef.current = null;
       setVerificationState('idle');
@@ -1579,13 +1618,13 @@ export function ManualAddModal({
       verificationRunRef.current += 1;
       verificationPendingRunRef.current = null;
     };
-  }, [hasVerifier, open, runVerification]);
+  }, [open, runVerification, verificationEnabled]);
 
   if (!open) return null;
 
   const wallet = walletName?.trim() || 'your wallet';
-  const doneDisabled = lastStep && hasVerifier && verificationState !== 'connected';
-  const connectionCopy = !hasVerifier
+  const doneDisabled = lastStep && verificationEnabled && verificationState !== 'connected';
+  const connectionCopy = !verificationEnabled
     ? {
         title: 'Make sure the endpoint is enabled',
         detail: 'Save this RPC URL in your wallet before finishing.',
@@ -1636,6 +1675,7 @@ export function ManualAddModal({
   const chooseWallet = (nextWallet: WalletGuideId) => {
     setSelectedWallet(nextWallet);
     setStep(0);
+    setVerificationState('idle');
   };
 
   const renderRpcBox = () =>
@@ -1813,8 +1853,16 @@ export function ManualAddModal({
               <div key={step} className="phylax-wallet-guide__walkthrough">
                 <div className="phylax-wallet-guide__image-stage">
                   <img
+                    className={selectedWallet === 'rainbow' && step === 1
+                      ? 'phylax-wallet-guide__step-image--rainbow-settings'
+                      : undefined}
                     src={currentImageUrl}
                     alt={`${activeGuide.name} step ${step + 1}: ${currentStep.title}`}
+                    loading="eager"
+                    decoding="async"
+                    onLoad={() => {
+                      if (nextImageUrl) preloadGuideImage(nextImageUrl);
+                    }}
                   />
                 </div>
 
@@ -1822,7 +1870,7 @@ export function ManualAddModal({
                   <p className="phylax-wallet-guide__step-count">Step {step + 1} of {activeGuide.steps.length}</p>
                   <h3>{currentStep.title}</h3>
                   <p>{currentStep.text}</p>
-                  {lastStep ? (
+                  {lastStep && selectedWallet !== 'rainbow' ? (
                     <div className="phylax-wallet-guide__connection">
                       <div
                         className="phylax-wallet-guide__connection-row"
@@ -1842,7 +1890,7 @@ export function ManualAddModal({
                           {rpcUrl}
                         </div>
                       ) : null}
-                      {hasVerifier ? (
+                      {verificationEnabled ? (
                         <button
                           type="button"
                           className="phylax-wallet-guide__connection-retry"
