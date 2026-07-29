@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import phylaxLogo from './assets/phylax-logo.svg';
 import rabbyLogo from './assets/rabby/logo.svg';
 import rainbowLogo from './assets/rainbow/logo.svg';
+import zerionLogo from './assets/zerion/logo.svg';
 import { buildCloudflareImageUrl } from './cloudflare-images';
 import type {
   ConnectionVerificationState,
@@ -95,6 +96,29 @@ const RAINBOW_STEPS = [
   },
 ] as const;
 
+const ZERION_STEPS = [
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/7c160697-8a29-45b7-6cca-fee14c9a7d00/w=800',
+    title: 'Open Zerion',
+    text: 'Open the Zerion extension with Ethereum selected. You will be changing the node Ethereum uses, not the network itself.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/3aff7827-f6a4-4e69-85e8-4f003daea700/w=800',
+    title: 'Open Networks',
+    text: 'Select the gear icon to open Settings, then choose Networks.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/b5232e05-43bd-4731-2960-fee034e34d00/w=800',
+    title: 'Select Ethereum',
+    text: 'Pick Ethereum from the network list to open its details.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/3a48efea-423a-4e68-710b-448cbad5b400/w=800',
+    title: 'Paste the Phylax URL',
+    text: 'Replace the RPC URL with the Phylax endpoint, leave the other fields as they are, then select Save.',
+  },
+] as const;
+
 interface WalletGuide {
   id: string;
   aliases: readonly string[];
@@ -111,6 +135,8 @@ interface WalletGuide {
     text: string;
   }[];
   rpcStep: number;
+  /** Set when the wallet's active RPC cannot be detected, so the last step hides the check. */
+  skipVerification?: boolean;
 }
 
 // Wallet-specific visuals and copy live in this registry; the surrounding modal,
@@ -141,6 +167,21 @@ const WALLET_GUIDES: readonly WalletGuide[] = [
     description: 'Follow this quick walkthrough to add the Phylax RPC as Rainbow’s active Ethereum endpoint.',
     steps: RAINBOW_STEPS,
     rpcStep: 5,
+    skipVerification: true,
+  },
+  {
+    id: 'zerion',
+    aliases: ['zerion', 'zerion wallet'],
+    name: 'Zerion',
+    logo: zerionLogo,
+    accent: '#2962ef',
+    accentStrong: '#4d7ef5',
+    accentSoft: 'rgba(41, 98, 239, 0.16)',
+    heading: 'Route Ethereum through Phylax',
+    description: 'Follow this quick walkthrough to point Zerion’s Ethereum network at the Phylax RPC.',
+    steps: ZERION_STEPS,
+    rpcStep: 3,
+    skipVerification: true,
   },
 ];
 
@@ -250,9 +291,9 @@ const MODAL_STYLES = `
 
   .phylax-wallet-guide__brand-mark {
     display: grid;
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
     place-items: center;
     color: var(--phylax-fg);
   }
@@ -264,22 +305,30 @@ const MODAL_STYLES = `
     filter: var(--phylax-logo-filter);
   }
 
-  .phylax-wallet-guide__brand-copy strong,
-  .phylax-wallet-guide__brand-copy span {
-    display: block;
+  /* Stacked column so "RPC setup" sits directly under "Phylax" on a shared left edge,
+     with explicit line-heights so the pair centres on the mark. */
+  .phylax-wallet-guide__brand-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2px;
+    text-align: left;
   }
 
   .phylax-wallet-guide__brand-copy strong {
     color: var(--phylax-fg);
     font-size: 14px;
     font-weight: 730;
+    line-height: 1.1;
     letter-spacing: -0.01em;
   }
 
   .phylax-wallet-guide__brand-copy span {
-    margin-top: 2px;
     color: var(--phylax-muted-strong);
     font-size: 11px;
+    line-height: 1.1;
   }
 
   .phylax-wallet-guide__nav-label {
@@ -1459,7 +1508,7 @@ export function ManualAddModal({
     : undefined;
   const lastStep = activeGuide ? step === activeGuide.steps.length - 1 : false;
   const hasVerifier = typeof verifyConnection === 'function';
-  const verificationEnabled = hasVerifier && selectedWallet !== 'rainbow';
+  const verificationEnabled = hasVerifier && !activeGuide?.skipVerification;
 
   verifyConnectionRef.current = verifyConnection;
 
@@ -1870,7 +1919,7 @@ export function ManualAddModal({
                   <p className="phylax-wallet-guide__step-count">Step {step + 1} of {activeGuide.steps.length}</p>
                   <h3>{currentStep.title}</h3>
                   <p>{currentStep.text}</p>
-                  {lastStep && selectedWallet !== 'rainbow' ? (
+                  {lastStep && !activeGuide.skipVerification ? (
                     <div className="phylax-wallet-guide__connection">
                       <div
                         className="phylax-wallet-guide__connection-row"

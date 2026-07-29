@@ -96,12 +96,13 @@
             { className: 'buttons' },
             h('button', { className: 'demo primary', onClick: onAdd('Rabby') }, 'Add Phylax (Rabby)'),
             h('button', { className: 'demo primary', onClick: onAdd('Rainbow') }, 'Add Phylax (Rainbow)'),
+            h('button', { className: 'demo primary', onClick: onAdd('Zerion') }, 'Add Phylax (Zerion)'),
             h('button', { className: 'demo secondary', onClick: onForce }, 'Force show modal'),
           ),
           h(
             'p',
             { className: 'note' },
-            'The two “Add Phylax” buttons simulate an unsupported wallet falling back to manual, one per detected wallet; “Force show modal” opens it with no wallet detected.',
+            'The “Add Phylax” buttons simulate an unsupported wallet falling back to manual, one per detected wallet; “Force show modal” opens it with no wallet detected.',
           ),
           h(ManualAddModal, {
             open,

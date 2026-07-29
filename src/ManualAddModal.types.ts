@@ -27,8 +27,8 @@ export interface ManualAddModalProps {
   readonly imageOptions?: ModalImageOptions;
   /**
    * Silent wallet-backed verification invoked for supported wallet guides when the modal
-   * opens, every three seconds while visible, and when the window regains focus. Rainbow's
-   * manual guide skips verification because its active RPC cannot be detected reliably.
+   * opens, every three seconds while visible, and when the window regains focus. The Rainbow
+   * and Zerion guides skip it because their active RPC cannot be detected reliably.
    * Return `true` only when the connected wallet is confirmed to be routing through Phylax.
    */
   readonly verifyConnection?: () => boolean | Promise<boolean>;
