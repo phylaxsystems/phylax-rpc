@@ -67,8 +67,8 @@
         // Mimics the dApp's "Add Phylax" button: in real usage you'd call
         // attemptSwitch() first; for an unsupported wallet it returns
         // manualFallback: true, which is your cue to open this modal.
-        const onAdd = () => {
-          setWallet('Rabby');
+        const onAdd = (detectedWallet) => () => {
+          setWallet(detectedWallet);
           setOpen(true);
         };
 
@@ -94,13 +94,14 @@
           h(
             'div',
             { className: 'buttons' },
-            h('button', { className: 'demo primary', onClick: onAdd }, 'Add Phylax'),
+            h('button', { className: 'demo primary', onClick: onAdd('Rabby') }, 'Add Phylax (Rabby)'),
+            h('button', { className: 'demo primary', onClick: onAdd('Rainbow') }, 'Add Phylax (Rainbow)'),
             h('button', { className: 'demo secondary', onClick: onForce }, 'Force show modal'),
           ),
           h(
             'p',
             { className: 'note' },
-            '“Add Phylax” simulates an unsupported wallet falling back to manual; “Force show modal” opens it directly.',
+            'The two “Add Phylax” buttons simulate an unsupported wallet falling back to manual, one per detected wallet; “Force show modal” opens it with no wallet detected.',
           ),
           h(ManualAddModal, {
             open,

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import phylaxLogo from './assets/phylax-logo.svg';
 import rabbyLogo from './assets/rabby/logo.svg';
+import rainbowLogo from './assets/rainbow/logo.svg';
 import { buildCloudflareImageUrl } from './cloudflare-images';
 import type {
   ConnectionVerificationState,
@@ -56,6 +57,50 @@ const RABBY_STEPS = [
   },
 ] as const;
 
+// TODO: replace each `image` with its Cloudflare Images delivery URL once the labelled
+// screenshots are uploaded. Source files, in step order:
+//   rainbow-01-open-wallet.png       rainbow-05-add-rpc-endpoint.png
+//   rainbow-02-open-settings.png     rainbow-06-paste-phylax-url.png
+//   rainbow-03-open-networks.png     rainbow-07-confirm-active.png
+//   rainbow-04-select-ethereum.png
+const RAINBOW_STEPS = [
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-01/public',
+    title: 'Open Rainbow',
+    text: 'Open the Rainbow extension. Your Ethereum balance is on the home screen — you will not be leaving Ethereum.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-02/public',
+    title: 'Open Settings',
+    text: 'Select the three dots in the top right, then choose Settings.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-03/public',
+    title: 'Open Networks',
+    text: 'In Settings, select Networks to see every chain Rainbow is configured for.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-04/public',
+    title: 'Select Ethereum',
+    text: 'Choose Ethereum from the network list. This opens its RPC endpoints without changing the network.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-05/public',
+    title: 'Add an RPC endpoint',
+    text: 'Under RPC Endpoints, select Add RPC Endpoint. Rainbow’s own endpoint stays in the list as a fallback.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-06/public',
+    title: 'Paste the Phylax URL',
+    text: 'Paste the Phylax RPC URL, leave Active switched on, then select Add Ethereum RPC.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/REPLACE-rainbow-07/public',
+    title: 'Confirm it is active',
+    text: 'Check that the Phylax endpoint appears under Ethereum and is marked Active. Select it if it is not.',
+  },
+] as const;
+
 interface WalletGuide {
   id: string;
   aliases: readonly string[];
@@ -89,6 +134,19 @@ const WALLET_GUIDES: readonly WalletGuide[] = [
     description: 'Follow this quick walkthrough to use the Phylax RPC as Rabby’s custom Ethereum node.',
     steps: RABBY_STEPS,
     rpcStep: 3,
+  },
+  {
+    id: 'rainbow',
+    aliases: ['rainbow', 'rainbow wallet'],
+    name: 'Rainbow',
+    logo: rainbowLogo,
+    accent: '#ff4000',
+    accentStrong: '#ff6633',
+    accentSoft: 'rgba(255, 64, 0, 0.16)',
+    heading: 'Route Ethereum through Phylax',
+    description: 'Follow this quick walkthrough to add the Phylax RPC as Rainbow’s active Ethereum endpoint.',
+    steps: RAINBOW_STEPS,
+    rpcStep: 5,
   },
 ];
 
