@@ -1,0 +1,15 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g clip-path="url(#zerion-squircle)">
+    <rect width="120" height="120" fill="url(#zerion-bg)"/>
+    <path d="M34 30H88V44L56 76H86V90H32V76L64 44H34V30Z" fill="#FFFFFF"/>
+  </g>
+  <defs>
+    <clipPath id="zerion-squircle">
+      <rect width="120" height="120" rx="27" ry="27"/>
+    </clipPath>
+    <linearGradient id="zerion-bg" x1="60" y1="0" x2="60" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2E3138"/>
+      <stop offset="1" stop-color="#14161B"/>
+    </linearGradient>
+  </defs>
+</svg>

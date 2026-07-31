@@ -2,6 +2,8 @@ import * as React from 'react';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import phylaxLogo from './assets/phylax-logo.svg';
 import rabbyLogo from './assets/rabby/logo.svg';
+import rainbowLogo from './assets/rainbow/logo.svg';
+import zerionLogo from './assets/zerion/logo.svg';
 import { buildCloudflareImageUrl } from './cloudflare-images';
 import type {
   ConnectionVerificationState,
@@ -56,6 +58,67 @@ const RABBY_STEPS = [
   },
 ] as const;
 
+const RAINBOW_STEPS = [
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/51f15724-6524-40ca-5e9e-c3959e3ef000/w=800',
+    title: 'Open Rainbow',
+    text: 'Open the Rainbow extension. Your Ethereum balance is on the home screen — you will not be leaving Ethereum.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/49f007a1-ca85-4ce5-f4db-65bc183c3c00/w=800',
+    title: 'Open Settings',
+    text: 'Select the three dots in the top right, then choose Settings.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/bce42398-c7c8-4ad4-deed-c4bbe7229500/w=800',
+    title: 'Open Networks',
+    text: 'In Settings, select Networks to see every chain Rainbow is configured for.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/bce42398-c7c8-4ad4-deed-c4bbe7229500/w=800',
+    title: 'Select Ethereum',
+    text: 'Choose Ethereum from the network list. This opens its RPC endpoints without changing the network.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/893da6ce-2d1a-4b0c-4d79-9feec296c000/w=800',
+    title: 'Add an RPC endpoint',
+    text: 'Under RPC Endpoints, select Add RPC Endpoint. Rainbow’s own endpoint stays in the list as a fallback.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/15bc53e9-3743-4cf1-90fb-df59cbcbc600/w=800',
+    title: 'Paste the Phylax URL',
+    text: 'Paste the Phylax RPC URL, leave Active switched on, then select Add Ethereum RPC.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/959eb04b-f81f-4f8a-ac99-04b2b7c05600/w=800',
+    title: 'Confirm it is active',
+    text: 'Check that the Phylax endpoint appears under Ethereum and is marked Active. Select it if it is not.',
+  },
+] as const;
+
+const ZERION_STEPS = [
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/7c160697-8a29-45b7-6cca-fee14c9a7d00/w=800',
+    title: 'Open Zerion',
+    text: 'Open the Zerion extension with Ethereum selected. You will be changing the node Ethereum uses, not the network itself.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/3aff7827-f6a4-4e69-85e8-4f003daea700/w=800',
+    title: 'Open Networks',
+    text: 'Select the gear icon to open Settings, then choose Networks.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/b5232e05-43bd-4731-2960-fee034e34d00/w=800',
+    title: 'Select Ethereum',
+    text: 'Pick Ethereum from the network list to open its details.',
+  },
+  {
+    image: 'https://imagedelivery.net/d5Lcqs_wQTDRwGl7Qqna0g/3a48efea-423a-4e68-710b-448cbad5b400/w=800',
+    title: 'Paste the Phylax URL',
+    text: 'Replace the RPC URL with the Phylax endpoint, leave the other fields as they are, then select Save.',
+  },
+] as const;
+
 interface WalletGuide {
   id: string;
   aliases: readonly string[];
@@ -72,6 +135,8 @@ interface WalletGuide {
     text: string;
   }[];
   rpcStep: number;
+  /** Set when the wallet's active RPC cannot be detected, so the last step hides the check. */
+  skipVerification?: boolean;
 }
 
 // Wallet-specific visuals and copy live in this registry; the surrounding modal,
@@ -90,6 +155,34 @@ const WALLET_GUIDES: readonly WalletGuide[] = [
     steps: RABBY_STEPS,
     rpcStep: 3,
   },
+  {
+    id: 'rainbow',
+    aliases: ['rainbow', 'rainbow wallet'],
+    name: 'Rainbow',
+    logo: rainbowLogo,
+    accent: '#ff4000',
+    accentStrong: '#ff6633',
+    accentSoft: 'rgba(255, 64, 0, 0.16)',
+    heading: 'Route Ethereum through Phylax',
+    description: 'Follow this quick walkthrough to add the Phylax RPC as Rainbow’s active Ethereum endpoint.',
+    steps: RAINBOW_STEPS,
+    rpcStep: 5,
+    skipVerification: true,
+  },
+  {
+    id: 'zerion',
+    aliases: ['zerion', 'zerion wallet'],
+    name: 'Zerion',
+    logo: zerionLogo,
+    accent: '#2962ef',
+    accentStrong: '#4d7ef5',
+    accentSoft: 'rgba(41, 98, 239, 0.16)',
+    heading: 'Route Ethereum through Phylax',
+    description: 'Follow this quick walkthrough to point Zerion’s Ethereum network at the Phylax RPC.',
+    steps: ZERION_STEPS,
+    rpcStep: 3,
+    skipVerification: true,
+  },
 ];
 
 type WalletGuideId = 'other' | (typeof WALLET_GUIDES)[number]['id'];
@@ -101,6 +194,21 @@ const guideIdForWallet = (walletName?: string): WalletGuideId => {
     guide.aliases.some((alias) => normalizedName === alias || normalizedName.includes(alias)),
   )?.id ?? 'other';
 };
+
+const preloadedGuideImages = new Set<string>();
+
+function preloadGuideImage(url: string): void {
+  if (typeof Image === 'undefined' || preloadedGuideImages.has(url)) return;
+
+  const image = new Image();
+  preloadedGuideImages.add(url);
+  image.decoding = 'async';
+  image.onerror = () => {
+    // Allow a later attempt if a transient network failure interrupted this preload.
+    preloadedGuideImages.delete(url);
+  };
+  image.src = url;
+}
 
 const MODAL_STYLES = `
   .phylax-wallet-guide,
@@ -183,9 +291,9 @@ const MODAL_STYLES = `
 
   .phylax-wallet-guide__brand-mark {
     display: grid;
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
     place-items: center;
     color: var(--phylax-fg);
   }
@@ -197,22 +305,30 @@ const MODAL_STYLES = `
     filter: var(--phylax-logo-filter);
   }
 
-  .phylax-wallet-guide__brand-copy strong,
-  .phylax-wallet-guide__brand-copy span {
-    display: block;
+  /* Stacked column so "RPC setup" sits directly under "Phylax" on a shared left edge,
+     with explicit line-heights so the pair centres on the mark. */
+  .phylax-wallet-guide__brand-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2px;
+    text-align: left;
   }
 
   .phylax-wallet-guide__brand-copy strong {
     color: var(--phylax-fg);
     font-size: 14px;
     font-weight: 730;
+    line-height: 1.1;
     letter-spacing: -0.01em;
   }
 
   .phylax-wallet-guide__brand-copy span {
-    margin-top: 2px;
     color: var(--phylax-muted-strong);
     font-size: 11px;
+    line-height: 1.1;
   }
 
   .phylax-wallet-guide__nav-label {
@@ -501,14 +617,19 @@ const MODAL_STYLES = `
   }
 
   .phylax-wallet-guide__step-name {
+    display: -webkit-box;
     width: 100%;
     margin-top: 7px;
     overflow: hidden;
     color: inherit;
     font-size: 9px;
     font-weight: 650;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.25;
+    min-height: 2.5em;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .phylax-wallet-guide__step-tab--active .phylax-wallet-guide__step-name {
@@ -571,6 +692,12 @@ const MODAL_STYLES = `
     border: 1px solid var(--phylax-border);
     border-radius: 10px;
     box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22), 0 3px 8px rgba(0, 0, 0, 0.12);
+  }
+
+  .phylax-wallet-guide__step-image--rainbow-settings {
+    clip-path: inset(1% 0.75% 1% 1.5% round 10px);
+    background: var(--phylax-subtle);
+    transform: scale(1.04);
   }
 
   .phylax-wallet-guide__step-card {
@@ -1375,8 +1502,13 @@ export function ManualAddModal({
   const currentImageUrl = currentStep
     ? buildCloudflareImageUrl(currentStep.image, imageOptions)
     : undefined;
+  const nextStep = activeGuide?.steps[step + 1];
+  const nextImageUrl = nextStep
+    ? buildCloudflareImageUrl(nextStep.image, imageOptions)
+    : undefined;
   const lastStep = activeGuide ? step === activeGuide.steps.length - 1 : false;
   const hasVerifier = typeof verifyConnection === 'function';
+  const verificationEnabled = hasVerifier && !activeGuide?.skipVerification;
 
   verifyConnectionRef.current = verifyConnection;
 
@@ -1498,10 +1630,24 @@ export function ManualAddModal({
     setVerificationState('idle');
   }, [open, walletName]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    for (const guide of WALLET_GUIDES) {
+      // Prime the active walkthrough's first transition and the other wallet's opening
+      // image. If the user switches wallets, that guide becomes active and its second
+      // image is primed as well.
+      const preloadCount = guide.id === selectedWallet ? 2 : 1;
+      for (const item of guide.steps.slice(0, preloadCount)) {
+        preloadGuideImage(buildCloudflareImageUrl(item.image, imageOptions));
+      }
+    }
+  }, [imageOptions, open, selectedWallet]);
+
   useEffect(() => setCopied(false), [step]);
 
   useEffect(() => {
-    if (!open || !hasVerifier) {
+    if (!open || !verificationEnabled) {
       verificationRunRef.current += 1;
       verificationPendingRunRef.current = null;
       setVerificationState('idle');
@@ -1521,13 +1667,13 @@ export function ManualAddModal({
       verificationRunRef.current += 1;
       verificationPendingRunRef.current = null;
     };
-  }, [hasVerifier, open, runVerification]);
+  }, [open, runVerification, verificationEnabled]);
 
   if (!open) return null;
 
   const wallet = walletName?.trim() || 'your wallet';
-  const doneDisabled = lastStep && hasVerifier && verificationState !== 'connected';
-  const connectionCopy = !hasVerifier
+  const doneDisabled = lastStep && verificationEnabled && verificationState !== 'connected';
+  const connectionCopy = !verificationEnabled
     ? {
         title: 'Make sure the endpoint is enabled',
         detail: 'Save this RPC URL in your wallet before finishing.',
@@ -1578,6 +1724,7 @@ export function ManualAddModal({
   const chooseWallet = (nextWallet: WalletGuideId) => {
     setSelectedWallet(nextWallet);
     setStep(0);
+    setVerificationState('idle');
   };
 
   const renderRpcBox = () =>
@@ -1755,8 +1902,16 @@ export function ManualAddModal({
               <div key={step} className="phylax-wallet-guide__walkthrough">
                 <div className="phylax-wallet-guide__image-stage">
                   <img
+                    className={selectedWallet === 'rainbow' && step === 1
+                      ? 'phylax-wallet-guide__step-image--rainbow-settings'
+                      : undefined}
                     src={currentImageUrl}
                     alt={`${activeGuide.name} step ${step + 1}: ${currentStep.title}`}
+                    loading="eager"
+                    decoding="async"
+                    onLoad={() => {
+                      if (nextImageUrl) preloadGuideImage(nextImageUrl);
+                    }}
                   />
                 </div>
 
@@ -1764,7 +1919,7 @@ export function ManualAddModal({
                   <p className="phylax-wallet-guide__step-count">Step {step + 1} of {activeGuide.steps.length}</p>
                   <h3>{currentStep.title}</h3>
                   <p>{currentStep.text}</p>
-                  {lastStep ? (
+                  {lastStep && !activeGuide.skipVerification ? (
                     <div className="phylax-wallet-guide__connection">
                       <div
                         className="phylax-wallet-guide__connection-row"
@@ -1784,7 +1939,7 @@ export function ManualAddModal({
                           {rpcUrl}
                         </div>
                       ) : null}
-                      {hasVerifier ? (
+                      {verificationEnabled ? (
                         <button
                           type="button"
                           className="phylax-wallet-guide__connection-retry"
