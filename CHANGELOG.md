@@ -1,5 +1,13 @@
 # @phylax-systems/phylax-rpc
 
+## 0.2.0
+
+### Minor Changes
+
+- [#12](https://github.com/phylaxsystems/phylax-rpc/pull/12) [`00815a8`](https://github.com/phylaxsystems/phylax-rpc/commit/00815a8d5e1a3434c76b6479c352e872f1a67a16) Thanks [@makemake-kbo](https://github.com/makemake-kbo)! - Add a Zerion walkthrough to `ManualAddModal`. Zerion is detected but has no assisted `wallet_addEthereumChain` path, so it fell through to the generic manual card; it now gets a four-step guide (home → Settings/Networks → Ethereum → RPC URL) selected automatically when `walletName` is Zerion.
+
+  Guides that cannot detect their active RPC now carry a `skipVerification` flag instead of a hard-coded wallet check, and Zerion uses it alongside Rainbow, so the last step no longer shows a connection status the SDK cannot confirm.
+
 ## 0.1.1
 
 ### Patch Changes
