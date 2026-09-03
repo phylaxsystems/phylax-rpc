@@ -27,16 +27,17 @@ export function retryDelay(attempt: number, random: () => number = Math.random):
  * Ceiling on {@link RetryPolicy.attempts}.
  *
  * The curve above repeats its last delay rather than growing, so nothing in the schedule itself
- * ends a retry loop — only the count does. Ten attempts is already some twenty seconds of
- * backoff in front of a caller waiting on a verdict, which is the outer edge of useful.
+ * ends a retry loop — only the count does. Ten retries is already some twenty seconds of backoff
+ * in front of a caller waiting on a verdict, which is the outer edge of useful.
  */
 export const MAX_RETRY_ATTEMPTS = 10;
 
 /** How a caller adjusts retrying, or `false` to answer with the first attempt. */
 export interface RetryPolicy {
   /**
-   * Retries after the first attempt. Defaults to `RETRY_DELAYS.length`, `0` disables them, and
-   * a larger count is clamped to {@link MAX_RETRY_ATTEMPTS}.
+   * Retries *after* the first attempt, so the default of `RETRY_DELAYS.length` answers with at
+   * most four provider calls. `0` disables retrying, and a larger count is clamped to
+   * {@link MAX_RETRY_ATTEMPTS}.
    */
   readonly attempts?: number;
   /** Abandons the wait when the caller is no longer interested. */

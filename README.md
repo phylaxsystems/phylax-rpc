@@ -115,5 +115,6 @@ See `examples/wagmi-swap-guard.tsx` for an end-to-end wagmi integration.
 
 A verdict is never a routing problem, so a rejection offers no RPC switch;
 `detection.assertionRejection` names the assertions that objected. An inconclusive result says why
-in `reason` and flags `retryable`, and `detect` retries the transient ones itself — three attempts
-with backoff, which `retry: false` or `retry: { attempts, signal }` overrides.
+in `reason` and flags `retryable`, and `detect` retries the transient ones itself — three retries
+with backoff, so at most four provider calls, which `retry: false` or `retry: { attempts, signal }`
+overrides.
