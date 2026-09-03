@@ -1,6 +1,12 @@
 import { request } from './eip1193';
 import { classifyRpcError, type RpcFailure } from './errors/rpc';
-import { isTransient, retryDelay, shouldRetry, wait } from './errors/retry';
+import {
+  isTransient,
+  retryDelay,
+  shouldRetry,
+  type RetryPolicy,
+  wait,
+} from './errors/retry';
 import { isNumeric, toHexQuantity } from './hex';
 import type {
   CredibleRevertMatch,
@@ -75,15 +81,34 @@ export function buildPreflightParams(
   return method === 'eth_call' ? [normalized, 'latest'] : [normalized];
 }
 
-/** Silently read the connected account (`eth_accounts`), never prompting. */
-async function resolveAccount(provider: Eip1193Provider): Promise<string | undefined> {
-  try {
-    const accounts = await request(provider, 'eth_accounts');
-    return Array.isArray(accounts) && typeof accounts[0] === 'string'
-      ? accounts[0]
-      : undefined;
-  } catch {
-    return undefined;
+type RequestResult =
+  | Readonly<{ ok: true; value: unknown }>
+  | Readonly<{ ok: false; failure: RpcFailure; error: unknown }>;
+
+interface RetryState {
+  attempts: number;
+}
+
+/** Run one of detection's read-only provider calls with the configured transient retry policy. */
+async function requestWithRetry(
+  operation: () => Promise<unknown>,
+  retry: RetryPolicy | false | undefined,
+  state: RetryState,
+): Promise<RequestResult> {
+  const policy = retry === false ? undefined : retry;
+  for (;;) {
+    try {
+      return { ok: true, value: await operation() };
+    } catch (error) {
+      const failure = classifyRpcError(error);
+      if (isTransient(failure) && shouldRetry(failure, state.attempts, retry)) {
+        await wait(retryDelay(state.attempts, policy?.random), policy?.signal);
+        if (policy?.signal?.aborted) return { ok: false, failure, error };
+        state.attempts += 1;
+        continue;
+      }
+      return { ok: false, failure, error };
+    }
   }
 }
 
@@ -96,9 +121,10 @@ async function resolveAccount(provider: Eip1193Provider): Promise<string | undef
  * - Preflight reverts with the Credible RPC's own gate message → the request reached Phylax
  *   and an assertion refused the transaction: a genuine revert, and never a switch.
  * - Preflight reverts with `Error(string)` matching the credible message → off Phylax.
- * - Preflight reverts with any other decodable data (a different `Error(string)`, a
- *   `Panic`, or a custom error) → a genuine revert, not a routing problem.
- * - No decodable revert data (network error, opaque shape) → inconclusive.
+ * - Preflight carries any other revert evidence (empty data with a standard execution signal,
+ *   a different `Error(string)`, a `Panic`, or a custom error) → a genuine revert, not a
+ *   routing problem.
+ * - No revert evidence (network error, opaque shape) → inconclusive.
  *
  * The wallet's own confirm-screen "tx will fail" verdict is deliberately ignored: it is
  * generic, runs against the wallet's centralized simulator, and fires even for
@@ -107,10 +133,29 @@ async function resolveAccount(provider: Eip1193Provider): Promise<string | undef
 export async function detectOffPhylax(options: DetectOptions): Promise<DetectionResult> {
   const { provider, config } = options;
   const method = options.method ?? 'eth_estimateGas';
+  const retryState: RetryState = { attempts: 0 };
 
   // Resolve the sender: explicit tx `from` → `options.account` → silent `eth_accounts`.
   let from = options.transaction.from ?? options.account;
-  if (!from) from = await resolveAccount(provider);
+  if (!from) {
+    const accounts = await requestWithRetry(
+      () => request(provider, 'eth_accounts'),
+      options.retry,
+      retryState,
+    );
+    if (!accounts.ok) {
+      const { failure, error } = accounts;
+      // `eth_accounts` cannot execute EVM code. If a malformed provider nevertheless labels its
+      // failure as a revert, keep detection inconclusive without claiming that the probe ran.
+      return failure.kind === 'assertion-rejected' || failure.kind === 'reverted'
+        ? inconclusive({ kind: 'unknown' }, error)
+        : inconclusive(failure, error);
+    }
+    from =
+      Array.isArray(accounts.value) && typeof accounts.value[0] === 'string'
+        ? accounts.value[0]
+        : undefined;
+  }
   if (!from) {
     return {
       status: 'inconclusive',
@@ -129,47 +174,34 @@ export async function detectOffPhylax(options: DetectOptions): Promise<Detection
     : { ...options.transaction, from };
   const params = buildPreflightParams(transaction, method);
 
-  const policy = options.retry === false ? undefined : options.retry;
+  const preflight = await requestWithRetry(
+    () => request(provider, method, params),
+    options.retry,
+    retryState,
+  );
+  if (preflight.ok) return { status: 'on-phylax', offPhylax: false };
 
-  for (let attempt = 0; ; attempt++) {
-    try {
-      await request(provider, method, params);
-      return { status: 'on-phylax', offPhylax: false };
-    } catch (error) {
-      const failure = classifyRpcError(error);
+  const { failure, error } = preflight;
+  switch (failure.kind) {
+    case 'assertion-rejected':
+      return revertedBy(failure, error);
 
-      // Only a condition the RPC calls transient is worth reissuing, and the preflight is a
-      // read, so reissuing it cannot double-submit anything.
-      if (isTransient(failure) && shouldRetry(failure, attempt, options.retry)) {
-        await wait(retryDelay(attempt, policy?.random), policy?.signal);
-        // Aborting during the backoff means the answer is no longer wanted, so the request is
-        // not reissued just because the wait ended.
-        if (policy?.signal?.aborted) return inconclusive(failure, error);
-        continue;
-      }
+    case 'reverted':
+      // Only a revert the classifier did not attribute to the gate can be a routing
+      // signal; the credible matcher is broad enough to claim the gate's wording too.
+      return failure.reason && matchesCredible(failure.reason, config.credibleRevertMatch)
+        ? {
+            status: 'off-phylax',
+            offPhylax: true,
+            revertReason: failure.reason,
+            revertData: failure.data,
+            error,
+          }
+        : revertedBy(failure, error);
 
-      switch (failure.kind) {
-        case 'assertion-rejected':
-          return revertedBy(failure, error);
-
-        case 'reverted':
-          // Only a revert the classifier did not attribute to the gate can be a routing
-          // signal; the credible matcher is broad enough to claim the gate's wording too.
-          return failure.reason && matchesCredible(failure.reason, config.credibleRevertMatch)
-            ? {
-                status: 'off-phylax',
-                offPhylax: true,
-                revertReason: failure.reason,
-                revertData: failure.data,
-                error,
-              }
-            : revertedBy(failure, error);
-
-        // Nothing about routing follows from the rest.
-        default:
-          return inconclusive(failure, error);
-      }
-    }
+    // Nothing about routing follows from the rest.
+    default:
+      return inconclusive(failure, error);
   }
 }
 

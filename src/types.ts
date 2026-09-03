@@ -279,7 +279,7 @@ export type DetectionResult =
       revertData: Hex;
       error: unknown;
     }>
-  /** Preflight reverted with decodable data for a non-credible reason → genuine tx error. */
+  /** Preflight produced standard revert evidence for a non-credible reason → genuine tx error. */
   | Readonly<{
       status: 'reverted';
       offPhylax: false;

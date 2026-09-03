@@ -153,6 +153,31 @@ describe('classifyRpcError', () => {
       'invalid-transaction',
       false,
     ],
+    [
+      'a fee cap above the uint256 maximum',
+      nodeError('max fee per gas higher than 2^256-1'),
+      'invalid-transaction',
+      false,
+    ],
+    [
+      'a fee cap above the uint256 maximum in alternate wording',
+      nodeError('fee cap higher than 2^256-1'),
+      'invalid-transaction',
+      false,
+    ],
+    [
+      'an outdated fee cap',
+      nodeError('transaction is outdated'),
+      'invalid-transaction',
+      false,
+    ],
+    [
+      'an already imported transaction',
+      nodeError('transaction already imported'),
+      'invalid-transaction',
+      false,
+    ],
+    ['an already known transaction', nodeError('already known'), 'invalid-transaction', false],
     ['a stale nonce', nodeError('nonce too low'), 'invalid-transaction', false],
     [
       'an underpriced transaction',
@@ -174,6 +199,23 @@ describe('classifyRpcError', () => {
       true,
     ],
     ['a closed socket', new Error('The socket has been closed.'), 'transport', true],
+    [
+      'a viem HTTP 503 response',
+      Object.assign(new Error('HTTP request failed.'), {
+        name: 'HttpRequestError',
+        status: 503,
+      }),
+      'transport',
+      true,
+    ],
+    [
+      'a viem WebSocket request failure without a nested cause',
+      Object.assign(new Error('WebSocket request failed.'), {
+        name: 'WebSocketRequestError',
+      }),
+      'transport',
+      true,
+    ],
     ['nothing recognisable', new Error('something went sideways'), 'unknown', false],
   ])('reads %s as %s', (_label, error, kind, retryable) => {
     const failure = classifyRpcError(error);
@@ -211,12 +253,34 @@ describe('classifyRpcError', () => {
     expect(failure).not.toHaveProperty('reason');
   });
 
+  it.each([
+    ['the standard execution code', { code: 3, message: 'execution reverted', data: '0x' }],
+    [
+      'geth wording with empty data',
+      { code: -32000, message: 'execution reverted', data: '0x' },
+    ],
+    ['geth wording without data', { code: -32000, message: 'execution reverted' }],
+    ['ethers CALL_EXCEPTION', { code: 'CALL_EXCEPTION', message: 'missing revert data' }],
+    ['viem ExecutionRevertedError', { name: 'ExecutionRevertedError' }],
+  ])('reads an empty-data revert from %s', (_label, error) => {
+    expect(classifyRpcError(error)).toEqual({ kind: 'reverted', data: '0x' });
+  });
+
   it('finds the node wording a wallet wrapped', () => {
     const wrapped = Object.assign(new Error('Internal JSON-RPC error.'), {
       cause: { error: { message: 'insufficient funds for gas * price + value' } },
     });
 
     expect(classifyRpcError(wrapped).kind).toBe('invalid-transaction');
+  });
+
+  it('does not retry a non-transient viem HTTP response', () => {
+    const badRequest = Object.assign(new Error('HTTP request failed.'), {
+      name: 'HttpRequestError',
+      status: 400,
+    });
+
+    expect(classifyRpcError(badRequest).kind).toBe('unknown');
   });
 });
 

@@ -482,4 +482,74 @@ describe('detectOffPhylax retries', () => {
     expect((await pending).status).toBe('inconclusive');
     expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
   });
+
+  it('retries a transient failure while resolving the sender', async () => {
+    const account = '0x' + '33'.repeat(20);
+    const disconnected = (): never => {
+      throw Object.assign(new Error('The Provider is disconnected from all chains.'), {
+        code: 4900,
+      });
+    };
+    const provider = new MockProvider()
+      .setHandlers('eth_accounts', disconnected, () => [account])
+      .setHandlers('eth_estimateGas', () => '0x5208');
+
+    const pending = detectOffPhylax({
+      provider,
+      transaction: { to: tx.to },
+      config,
+      retry: centred,
+    });
+    await vi.runAllTimersAsync();
+
+    expect((await pending).status).toBe('on-phylax');
+    expect(provider.callsTo('eth_accounts')).toHaveLength(2);
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
+  });
+
+  it('preserves a transport failure from sender resolution', async () => {
+    const disconnected = Object.assign(
+      new Error('The Provider is disconnected from all chains.'),
+      { code: 4900 },
+    );
+    const provider = new MockProvider().setHandlers('eth_accounts', () => {
+      throw disconnected;
+    });
+
+    const result = await detectOffPhylax({
+      provider,
+      transaction: { to: tx.to },
+      config,
+      retry: false,
+    });
+
+    assertStatus(result, 'inconclusive');
+    expect(result.reason).toBe('transport');
+    expect(result.retryable).toBe(true);
+    expect(result.error).toBe(disconnected);
+  });
+
+  it('shares the retry budget across sender resolution and preflight', async () => {
+    const account = '0x' + '33'.repeat(20);
+    const disconnected = (): never => {
+      throw Object.assign(new Error('The Provider is disconnected from all chains.'), {
+        code: 4900,
+      });
+    };
+    const provider = new MockProvider()
+      .setHandlers('eth_accounts', disconnected, () => [account])
+      .setHandlers('eth_estimateGas', unavailable);
+
+    const pending = detectOffPhylax({
+      provider,
+      transaction: { to: tx.to },
+      config,
+      retry: centred,
+    });
+    await vi.runAllTimersAsync();
+
+    expect((await pending).status).toBe('inconclusive');
+    expect(provider.callsTo('eth_accounts')).toHaveLength(2);
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(RETRY_DELAYS.length);
+  });
 });

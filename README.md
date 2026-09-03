@@ -22,7 +22,7 @@ npm install react wagmi viem ethers
 
 ### Headless
 
-`PhylaxRpcSwitch` bundles EIP-6963 detection, the credible-require preflight, and the assisted 
+`PhylaxRpcSwitch` bundles EIP-6963 detection, the credible-require preflight, and the assisted
 add/switch/verify path behind one config:
 
 ```ts
@@ -115,6 +115,6 @@ See `examples/wagmi-swap-guard.tsx` for an end-to-end wagmi integration.
 
 A verdict is never a routing problem, so a rejection offers no RPC switch;
 `detection.assertionRejection` names the assertions that objected. An inconclusive result says why
-in `reason` and flags `retryable`, and `detect` retries the transient ones itself — three retries
-with backoff, so at most four provider calls, which `retry: false` or `retry: { attempts, signal }`
-overrides.
+in `reason` and flags `retryable`, and `detect` retries transient failures itself — up to three
+retries with backoff, shared across sender resolution and preflight. Use `retry: false` or
+`retry: { attempts, signal }` to override that policy.

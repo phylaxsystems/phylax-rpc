@@ -12,6 +12,10 @@ Error recognition moved into `src/errors` behind one classifier with an explicit
 the EIP-1193 rejection code, then ABI revert data, then a wallet's dismissal wording, then the
 messages the RPC documents, then node wording. An `inconclusive` result now carries `reason`
 and `retryable`, so a transient gate condition is distinguishable from an underfunded sender,
-and the transient ones are retried automatically — three retries with jittered backoff, so at
-most four provider calls, overridable per call up to `MAX_RETRY_ATTEMPTS`. Assertion ids are a
-branded type.
+and the transient ones are retried automatically — three retries with jittered backoff, shared
+across detection's provider reads and overridable per call up to `MAX_RETRY_ATTEMPTS`. Assertion
+ids are a branded type.
+
+Standard provider transport wrappers, empty-data execution reverts, and viem's complete set of
+invalid-transaction aliases are classified explicitly. Transient sender lookup failures share the
+same bounded retry budget as the preflight instead of being reported as a missing account.

@@ -35,9 +35,8 @@ export const MAX_RETRY_ATTEMPTS = 10;
 /** How a caller adjusts retrying, or `false` to answer with the first attempt. */
 export interface RetryPolicy {
   /**
-   * Retries *after* the first attempt, so the default of `RETRY_DELAYS.length` answers with at
-   * most four provider calls. `0` disables retrying, and a larger count is clamped to
-   * {@link MAX_RETRY_ATTEMPTS}.
+   * Retries after the initial provider calls. `0` disables retrying, and a larger count is
+   * clamped to {@link MAX_RETRY_ATTEMPTS}.
    */
   readonly attempts?: number;
   /** Abandons the wait when the caller is no longer interested. */

@@ -1,10 +1,12 @@
-import { isAssertionId } from '../brands';
+import { asHex, isAssertionId } from '../brands';
 import type { AssertionRejection, Hex } from '../types';
 import {
   collectErrorText,
   extractRevertData,
   hasUserRejectionCode,
+  isExecutionRevert,
   isProviderDisconnected,
+  isProviderTransportError,
   isUserRejection,
 } from './provider';
 import { decodeErrorString, isErrorStringRevert } from './revert';
@@ -26,7 +28,7 @@ export type RpcFailure =
       rejection?: AssertionRejection;
       data: Hex;
     }>
-  /** An ordinary revert: a contract's own `Error(string)`, `Panic`, or custom error. */
+  /** An ordinary revert: empty data, `Error(string)`, `Panic`, or a custom error. */
   | Readonly<{ kind: 'reverted'; reason?: string; data: Hex }>
   /** The gate could not judge the request. Transient by construction. */
   | Readonly<{ kind: 'assertions-unavailable'; reason: string }>
@@ -67,14 +69,15 @@ const GATE_UNSUPPORTED = /credible layer: \S+ is unsupported/;
  */
 const INVALID_TRANSACTION = [
   /insufficient funds|exceeds transaction sender account balance/,
-  /nonce too low/,
+  /nonce too low|transaction already imported|already known/,
   /nonce too high/,
   /nonce has max value/,
   /intrinsic gas too low/,
   /intrinsic gas too high|gas limit reached/,
-  /max fee per gas less than block base fee/,
+  /max fee per gas higher than 2\^256-1|fee cap higher than 2\^256-1/,
+  /max fee per gas less than block base fee|fee cap less than block base fee|transaction is outdated/,
   /max priority fee per gas higher than max fee per gas|tip higher than fee cap/,
-  /transaction underpriced|fee cap less than block base fee/,
+  /transaction underpriced/,
   /transaction type not valid/,
 ];
 
@@ -84,6 +87,8 @@ const INVALID_TRANSACTION = [
  */
 const TRANSPORT =
   /fetch failed|failed to fetch|network ?error|socket hang up|socket has been closed|econnreset|econnrefused|etimedout|timed? ?out/;
+
+const EMPTY_REVERT_DATA = asHex('0x');
 
 /**
  * Whether a decoded revert reason came from the Credible RPC's assertion gate.
@@ -157,6 +162,8 @@ export function classifyRpcError(error: unknown): RpcFailure {
     return { kind: 'reverted', ...(reason !== undefined ? { reason } : {}), data };
   }
 
+  if (isExecutionRevert(error)) return { kind: 'reverted', data: EMPTY_REVERT_DATA };
+
   // Only reachable with no revert data to explain the error, because a contract reverting with
   // Error("User rejected the request") reaches the caller carrying this same wording.
   if (isUserRejection(error)) return { kind: 'user-rejected' };
@@ -169,7 +176,13 @@ export function classifyRpcError(error: unknown): RpcFailure {
   }
   // The disconnection code sits with the wording rather than above the gate's messages: a gate
   // message is proof the request did reach a node, so a code contradicting it is the stale half.
-  if (isProviderDisconnected(error) || TRANSPORT.test(text)) return { kind: 'transport' };
+  if (
+    isProviderDisconnected(error) ||
+    isProviderTransportError(error) ||
+    TRANSPORT.test(text)
+  ) {
+    return { kind: 'transport' };
+  }
 
   return { kind: 'unknown' };
 }

@@ -187,6 +187,16 @@ const USER_REJECTION_TEXT =
 
 /** EIP-1193 disconnection: `4900` from every chain, `4901` from the requested one. */
 const DISCONNECTED_CODES: ReadonlySet<unknown> = new Set([4900, 4901]);
+/** Standard node/adapter signals for an execution revert whose payload may be empty. */
+const EXECUTION_REVERT_CODES: ReadonlySet<unknown> = new Set([3, 'CALL_EXCEPTION']);
+
+/** HTTP responses for which repeating the same request can reasonably succeed later. */
+function isTransientHttpStatus(value: unknown): boolean {
+  return (
+    typeof value === 'number' &&
+    (value === 408 || value === 425 || value === 429 || (value >= 500 && value <= 599))
+  );
+}
 
 /**
  * Whether an error carries the EIP-1193 user-rejection code, including wrappers.
@@ -223,4 +233,33 @@ export function isUserRejection(error: unknown): boolean {
  */
 export function isProviderDisconnected(error: unknown): boolean {
   return someError(error, (node) => DISCONNECTED_CODES.has(node.code));
+}
+
+/** Whether a provider structurally identified an execution revert, including empty payloads. */
+export function isExecutionRevert(error: unknown): boolean {
+  if (
+    someError(
+      error,
+      (node) =>
+        EXECUTION_REVERT_CODES.has(node.code) || node.name === 'ExecutionRevertedError',
+    )
+  ) {
+    return true;
+  }
+  return collectErrorText(error).includes('execution reverted');
+}
+
+/**
+ * Whether a provider library structurally identified a request-level transport failure.
+ *
+ * viem's wrapper text is deliberately generic, so matching only its message loses an HTTP
+ * status and a cause-less WebSocket failure. A status-less `HttpRequestError` means fetch itself
+ * failed; responses are retryable only for timeout, throttling, early-data, and server errors.
+ */
+export function isProviderTransportError(error: unknown): boolean {
+  return someError(error, (node) => {
+    if (node.name === 'WebSocketRequestError' || node.name === 'SocketClosedError') return true;
+    if (node.name !== 'HttpRequestError') return false;
+    return node.status === undefined || isTransientHttpStatus(node.status);
+  });
 }
