@@ -231,6 +231,23 @@ describe('classifyRpcError precedence', () => {
     expect(classifyRpcError(both).kind).toBe('assertion-rejected');
   });
 
+  // Revert data is proof the transaction ran, so it outranks a phrase a contract can write
+  // into its own require.
+  it('ranks revert data above the dismissal wording', () => {
+    const reverted = errorStringRevert('User rejected the request');
+
+    expect(classifyRpcError(reverted)).toMatchObject({
+      kind: 'reverted',
+      reason: 'User rejected the request',
+    });
+  });
+
+  it('falls back to the dismissal wording when no revert explains it', () => {
+    const dismissed = new Error('MetaMask Tx Signature: User denied transaction signature.');
+
+    expect(classifyRpcError(dismissed).kind).toBe('user-rejected');
+  });
+
   it('ranks a user dismissal above everything', () => {
     const dismissed = Object.assign(new Error('User rejected the request.'), {
       code: 4001,

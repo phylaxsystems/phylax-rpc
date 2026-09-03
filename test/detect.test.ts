@@ -206,6 +206,19 @@ describe('detectOffPhylax', () => {
     expect(result.revertReason).toBeUndefined();
   });
 
+  // A contract is free to revert with the same phrase a wallet uses for a dismissal, and only
+  // the revert data separates the two.
+  it('classifies a revert worded like a dismissal as reverted', async () => {
+    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+      throw errorStringRevert('User rejected the request');
+    });
+
+    const result = await detectOffPhylax({ provider, transaction: tx, config, retry: false });
+
+    assertStatus(result, 'reverted');
+    expect(result.revertReason).toBe('User rejected the request');
+  });
+
   // The gate refusing to judge is a node condition, not a verdict, and carries no revert data.
   it('is inconclusive when the gate reports assertions unavailable', async () => {
     const provider = new MockProvider().setHandlers('eth_estimateGas', () => {

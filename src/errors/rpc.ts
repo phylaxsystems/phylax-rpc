@@ -3,6 +3,7 @@ import type { AssertionRejection, Hex } from '../types';
 import {
   collectErrorText,
   extractRevertData,
+  hasUserRejectionCode,
   isProviderDisconnected,
   isUserRejection,
 } from './provider';
@@ -16,7 +17,7 @@ import { decodeErrorString, isErrorStringRevert } from './revert';
  * documents, which outrank node wording, which outranks a transport guess.
  */
 export type RpcFailure =
-  /** EIP-1193 `4001`: the user dismissed the request. */
+  /** EIP-1193 `4001`, or a wallet's dismissal wording where no revert explains it. */
   | Readonly<{ kind: 'user-rejected' }>
   /** The Credible RPC's assertion gate refused the transaction. */
   | Readonly<{
@@ -132,13 +133,14 @@ export function parseAssertionRejection(reason: string): AssertionRejection | un
 /**
  * Read a thrown provider error as one of the conditions the Credible RPC contract defines.
  *
- * Precedence is the point, and it runs highest-confidence first: an EIP-1193 code, then ABI
- * revert data, then the gate's own documented messages, then node wording, then a transport
- * guess. A broad matcher placed above a specific one is how a gate verdict gets read as
- * something else, so the order here is the contract and the tests pin it.
+ * Precedence is the point, and it runs highest-confidence first: the EIP-1193 rejection code,
+ * then ABI revert data, then a wallet's rejection wording, then the gate's own documented
+ * messages, then node wording, then a transport guess. A broad matcher placed above a specific
+ * one is how a gate verdict gets read as something else, so the order here is the contract and
+ * the tests pin it.
  */
 export function classifyRpcError(error: unknown): RpcFailure {
-  if (isUserRejection(error)) return { kind: 'user-rejected' };
+  if (hasUserRejectionCode(error)) return { kind: 'user-rejected' };
 
   const data = extractRevertData(error);
   if (data) {
@@ -154,6 +156,10 @@ export function classifyRpcError(error: unknown): RpcFailure {
     }
     return { kind: 'reverted', ...(reason !== undefined ? { reason } : {}), data };
   }
+
+  // Only reachable with no revert data to explain the error, because a contract reverting with
+  // Error("User rejected the request") reaches the caller carrying this same wording.
+  if (isUserRejection(error)) return { kind: 'user-rejected' };
 
   const text = collectErrorText(error);
   if (GATE_UNAVAILABLE.test(text)) return { kind: 'assertions-unavailable', reason: text };
