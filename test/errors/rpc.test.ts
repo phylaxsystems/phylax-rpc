@@ -161,6 +161,19 @@ describe('classifyRpcError', () => {
       false,
     ],
     ['a dropped connection', new Error('fetch failed: ECONNRESET'), 'transport', true],
+    [
+      'a disconnected provider',
+      nodeError('The Provider is disconnected from all chains.', 4900),
+      'transport',
+      true,
+    ],
+    [
+      'a provider disconnected from the requested chain',
+      nodeError('The Provider is not connected to the requested chain.', 4901),
+      'transport',
+      true,
+    ],
+    ['a closed socket', new Error('The socket has been closed.'), 'transport', true],
     ['nothing recognisable', new Error('something went sideways'), 'unknown', false],
   ])('reads %s as %s', (_label, error, kind, retryable) => {
     const failure = classifyRpcError(error);

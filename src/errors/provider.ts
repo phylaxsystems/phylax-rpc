@@ -155,6 +155,29 @@ export function extractRevertData(error: unknown): Hex | undefined {
   );
 }
 
+/**
+ * Whether any error in the tree satisfies `match`.
+ *
+ * Wallets wrap the provider's own error under `cause`/`error`/`info`, so a check reading only
+ * the outer object misses the code or wording that identifies the failure. Traversal is
+ * cycle-safe and depth-bounded.
+ */
+function someError(error: unknown, match: (node: Record<string, unknown>) => boolean): boolean {
+  const seen = new Set<object>();
+  const walk = (node: unknown, depth: number): boolean => {
+    if (node == null || depth > 8) return false;
+    if (!isObject(node)) return false;
+    if (seen.has(node)) return false;
+    seen.add(node);
+    if (match(node)) return true;
+    for (const value of knownValues(node)) {
+      if (walk(value, depth + 1)) return true;
+    }
+    return false;
+  };
+  return walk(error, 0);
+}
+
 /** EIP-1193 user-rejection code, and ethers' string alias. */
 const USER_REJECTION_CODES: ReadonlySet<unknown> = new Set([4001, 'ACTION_REJECTED']);
 // Deliberately narrow: matches explicit rejection phrasing, not a bare "denied" that a
@@ -162,26 +185,42 @@ const USER_REJECTION_CODES: ReadonlySet<unknown> = new Set([4001, 'ACTION_REJECT
 const USER_REJECTION_TEXT =
   /user rejected|user denied|user cancel|rejected the request|denied (the )?(request|transaction|signature)/i;
 
+/** EIP-1193 disconnection: `4900` from every chain, `4901` from the requested one. */
+const DISCONNECTED_CODES: ReadonlySet<unknown> = new Set([4900, 4901]);
+
+/**
+ * Whether an error carries the EIP-1193 user-rejection code, including wrappers.
+ *
+ * Kept apart from {@link isUserRejection} because only the code is structural evidence. The
+ * wording on its own also reaches a caller as a contract's `Error(string)` revert, which is a
+ * genuine revert and not a dismissal, so a classifier has to rank the two differently.
+ */
+export function hasUserRejectionCode(error: unknown): boolean {
+  return someError(error, (node) => USER_REJECTION_CODES.has(node.code));
+}
+
 /**
  * Whether an error looks like a user-rejected request (EIP-1193 `4001`), including wrappers.
  *
- * Wallets often wrap the rejection under `cause`/`error`/`data`, so the standard code is
- * matched cycle-safely across the error tree. This numeric-code check is unrelated to the
- * credible-require detection, which must never branch on numeric codes.
+ * This numeric-code check is unrelated to the credible-require detection, which must never
+ * branch on numeric codes.
  */
 export function isUserRejection(error: unknown): boolean {
-  const seen = new Set<object>();
-  const walk = (node: unknown, depth: number): boolean => {
-    if (node == null || depth > 8) return false;
-    if (!isObject(node)) return false;
-    if (seen.has(node)) return false;
-    seen.add(node);
-    if (USER_REJECTION_CODES.has(node.code)) return true;
-    if (typeof node.message === 'string' && USER_REJECTION_TEXT.test(node.message)) return true;
-    for (const value of knownValues(node)) {
-      if (walk(value, depth + 1)) return true;
-    }
-    return false;
-  };
-  return walk(error, 0);
+  return (
+    hasUserRejectionCode(error) ||
+    someError(
+      error,
+      (node) => typeof node.message === 'string' && USER_REJECTION_TEXT.test(node.message),
+    )
+  );
+}
+
+/**
+ * Whether an EIP-1193 provider reported itself disconnected (`4900`/`4901`), including wrappers.
+ *
+ * Read from the code rather than the message because the accompanying prose is the wallet's to
+ * word, and a disconnected provider never reached a node, so the request is worth reissuing.
+ */
+export function isProviderDisconnected(error: unknown): boolean {
+  return someError(error, (node) => DISCONNECTED_CODES.has(node.code));
 }

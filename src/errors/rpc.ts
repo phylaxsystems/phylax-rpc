@@ -1,6 +1,11 @@
 import { isAssertionId } from '../brands';
 import type { AssertionRejection, Hex } from '../types';
-import { collectErrorText, extractRevertData, isUserRejection } from './provider';
+import {
+  collectErrorText,
+  extractRevertData,
+  isProviderDisconnected,
+  isUserRejection,
+} from './provider';
 import { decodeErrorString, isErrorStringRevert } from './revert';
 
 /**
@@ -72,9 +77,12 @@ const INVALID_TRANSACTION = [
   /transaction type not valid/,
 ];
 
-/** Wording for a request that never reached a node, or whose answer never came back. */
+/**
+ * Wording for a request that never reached a node, or whose answer never came back. Covers the
+ * socket wording viem raises on a closed WebSocket alongside the runtime's own network errors.
+ */
 const TRANSPORT =
-  /fetch failed|failed to fetch|network ?error|socket hang up|econnreset|econnrefused|etimedout|timed? ?out/;
+  /fetch failed|failed to fetch|network ?error|socket hang up|socket has been closed|econnreset|econnrefused|etimedout|timed? ?out/;
 
 /**
  * Whether a decoded revert reason came from the Credible RPC's assertion gate.
@@ -153,7 +161,9 @@ export function classifyRpcError(error: unknown): RpcFailure {
   if (INVALID_TRANSACTION.some((wording) => wording.test(text))) {
     return { kind: 'invalid-transaction', detail: text };
   }
-  if (TRANSPORT.test(text)) return { kind: 'transport' };
+  // The disconnection code sits with the wording rather than above the gate's messages: a gate
+  // message is proof the request did reach a node, so a code contradicting it is the stale half.
+  if (isProviderDisconnected(error) || TRANSPORT.test(text)) return { kind: 'transport' };
 
   return { kind: 'unknown' };
 }
