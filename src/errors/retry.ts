@@ -23,14 +23,40 @@ export function retryDelay(attempt: number, random: () => number = Math.random):
   return Math.max(0, Math.round(base * (1 + spread)));
 }
 
+/**
+ * Ceiling on {@link RetryPolicy.attempts}.
+ *
+ * The curve above repeats its last delay rather than growing, so nothing in the schedule itself
+ * ends a retry loop — only the count does. Ten attempts is already some twenty seconds of
+ * backoff in front of a caller waiting on a verdict, which is the outer edge of useful.
+ */
+export const MAX_RETRY_ATTEMPTS = 10;
+
 /** How a caller adjusts retrying, or `false` to answer with the first attempt. */
 export interface RetryPolicy {
-  /** Retries after the first attempt. Defaults to `RETRY_DELAYS.length`; `0` disables them. */
+  /**
+   * Retries after the first attempt. Defaults to `RETRY_DELAYS.length`, `0` disables them, and
+   * a larger count is clamped to {@link MAX_RETRY_ATTEMPTS}.
+   */
   readonly attempts?: number;
   /** Abandons the wait when the caller is no longer interested. */
   readonly signal?: AbortSignal;
   /** Jitter source. Injectable so a test can pin the schedule. */
   readonly random?: () => number;
+}
+
+/**
+ * The retry budget a policy asks for, as a count the loop is guaranteed to reach the end of.
+ *
+ * `attempts` arrives as unvalidated caller input, and the loop that consumes it only stops on
+ * `attempt < attempts`, so `Infinity` retries until the user gives up and a fractional count
+ * silently buys a retry the caller did not ask for. `NaN` reads as no retries because the
+ * comparison already refuses every attempt, and making that explicit keeps the budget a number.
+ */
+function resolveAttempts(attempts: number | undefined): number {
+  if (attempts === undefined) return RETRY_DELAYS.length;
+  if (Number.isNaN(attempts)) return 0;
+  return Math.min(Math.max(Math.floor(attempts), 0), MAX_RETRY_ATTEMPTS);
 }
 
 /** The kinds the RPC contract calls transient, and so the only ones worth reissuing. */
@@ -43,8 +69,7 @@ export function shouldRetry(
   policy: RetryPolicy | false | undefined,
 ): boolean {
   if (policy === false || policy?.signal?.aborted) return false;
-  const attempts = policy?.attempts ?? RETRY_DELAYS.length;
-  return attempt < attempts && isTransient(failure);
+  return attempt < resolveAttempts(policy?.attempts) && isTransient(failure);
 }
 
 /**

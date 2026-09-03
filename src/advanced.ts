@@ -21,6 +21,7 @@ export {
 
 export {
   isTransient,
+  MAX_RETRY_ATTEMPTS,
   RETRY_DELAYS,
   type Transient,
   retryDelay,

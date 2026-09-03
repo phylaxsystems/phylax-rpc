@@ -13,4 +13,4 @@ the EIP-1193 rejection code, then ABI revert data, then a wallet's dismissal wor
 messages the RPC documents, then node wording. An `inconclusive` result now carries `reason`
 and `retryable`, so a transient gate condition is distinguishable from an underfunded sender,
 and the transient ones are retried automatically — three attempts with jittered backoff,
-overridable per call. Assertion ids are a branded type.
+overridable per call up to `MAX_RETRY_ATTEMPTS`. Assertion ids are a branded type.
