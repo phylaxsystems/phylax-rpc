@@ -60,7 +60,7 @@ const GATE_UNSUPPORTED = /credible layer: \S+ is unsupported/;
  * its node errors on, so a wallet surfacing reth's message is read the same way here.
  */
 const INVALID_TRANSACTION = [
-  /insufficient funds/,
+  /insufficient funds|exceeds transaction sender account balance/,
   /nonce too low/,
   /nonce too high/,
   /nonce has max value/,

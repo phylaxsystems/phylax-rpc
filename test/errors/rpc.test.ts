@@ -146,6 +146,13 @@ describe('classifyRpcError', () => {
       'invalid-transaction',
       false,
     ],
+    [
+      // viem keys the same error on both wordings, and geth reports this one on send.
+      'an underfunded sender in the alternate wording',
+      nodeError('exceeds transaction sender account balance'),
+      'invalid-transaction',
+      false,
+    ],
     ['a stale nonce', nodeError('nonce too low'), 'invalid-transaction', false],
     [
       'an underpriced transaction',
