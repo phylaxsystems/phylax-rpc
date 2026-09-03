@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PhylaxRpcSwitch } from './client';
 import type { PreflightMethod } from './detect';
+import type { RetryPolicy } from './errors/retry';
 import {
   connectedWallet,
   type ConnectedAccountLike,
@@ -35,6 +36,8 @@ export interface HookDetectArgs {
   method?: PreflightMethod;
   /** Sender override when `transaction.from` is absent (see `DetectOptions.account`). */
   account?: string;
+  /** Retry policy for transient refusals, or `false` for a single attempt. */
+  retry?: RetryPolicy | false;
 }
 
 /**
@@ -283,6 +286,7 @@ export function usePhylaxRpcSwitch(
         transaction: args.transaction,
         method: args.method,
         account: args.account,
+        retry: args.retry,
       });
       if (
         mountedRef.current &&
