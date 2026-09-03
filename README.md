@@ -20,8 +20,10 @@ npm install react wagmi viem ethers
 
 ## Usage
 
-The headless client bundles EIP-6963 detection, the credible-require preflight, and the
-assisted add/switch/verify path behind one config:
+### Headless
+
+`PhylaxRpcSwitch` bundles EIP-6963 detection, the credible-require preflight, and the assisted 
+add/switch/verify path behind one config:
 
 ```ts
 import { PhylaxRpcSwitch } from '@phylax-systems/phylax-rpc';
@@ -41,7 +43,7 @@ if (detection.offPhylax) {
 }
 ```
 
-### React
+### With React
 
 ```tsx
 import { usePhylaxRpcSwitch, ManualAddModal } from '@phylax-systems/phylax-rpc/react';
@@ -99,3 +101,19 @@ Low-level building blocks (ABI decode, revert-data extraction, hex coercion, con
 helpers) live under `@phylax-systems/phylax-rpc/advanced`.
 
 See `examples/wagmi-swap-guard.tsx` for an end-to-end wagmi integration.
+
+### Error responses
+
+`detect` says whose problem a failed preflight is:
+
+| Whose problem | `detect` result |
+| --- | --- |
+| Nobody — the preflight passed | `on-phylax` |
+| The transaction — an assertion or the contract refused it | `reverted` |
+| Routing — the wallet is on the wrong RPC | `off-phylax` |
+| Infrastructure, or nothing recognisable | `inconclusive` |
+
+A verdict is never a routing problem, so a rejection offers no RPC switch;
+`detection.assertionRejection` names the assertions that objected. An inconclusive result says why
+in `reason` and flags `retryable`, and `detect` retries the transient ones itself — three attempts
+with backoff, which `retry: false` or `retry: { attempts, signal }` overrides.

@@ -1,6 +1,6 @@
-import { isHex } from './brands';
-import { ERROR_STRING_SELECTOR } from './constants';
-import { getSelector, hexToUtf8, normalizeHex } from './hex';
+import { isHex } from '../brands';
+import { ERROR_STRING_SELECTOR } from '../constants';
+import { getSelector, hexToUtf8, normalizeHex } from '../hex';
 
 /** Whether `data` is a Solidity `Error(string)` revert (selector `0x08c379a0`). */
 export function isErrorStringRevert(data: string): boolean {

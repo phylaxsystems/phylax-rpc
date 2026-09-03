@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { extractRevertData, isUserRejection } from '../src/eip1193';
-import { encodeErrorString } from './helpers';
+import { extractRevertData, isUserRejection } from '../../src/errors/provider';
+import { encodeErrorString } from '../helpers';
 
 describe('extractRevertData', () => {
   const data = encodeErrorString('assertion failed');

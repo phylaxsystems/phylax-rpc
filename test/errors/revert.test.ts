@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { decodeErrorString, isErrorStringRevert } from '../src/abi';
-import { encodeErrorString } from './helpers';
+import { decodeErrorString, isErrorStringRevert } from '../../src/errors/revert';
+import { encodeErrorString } from '../helpers';
 
 describe('decodeErrorString', () => {
   it('round-trips a message', () => {

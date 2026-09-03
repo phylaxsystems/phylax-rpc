@@ -10,7 +10,23 @@
 
 export { ERROR_STRING_SELECTOR, PANIC_SELECTOR } from './constants';
 
-export { decodeErrorString, isErrorStringRevert } from './abi';
+export { decodeErrorString, isErrorStringRevert } from './errors/revert';
+
+export {
+  classifyRpcError,
+  CREDIBLE_GATE_PREFIX,
+  isCredibleGateRevert,
+  parseAssertionRejection,
+} from './errors/rpc';
+
+export {
+  isTransient,
+  RETRY_DELAYS,
+  type Transient,
+  retryDelay,
+  shouldRetry,
+  type RetryPolicy,
+} from './errors/retry';
 
 export {
   getSelector,
@@ -21,12 +37,14 @@ export {
   toHexQuantity,
 } from './hex';
 
+export { request } from './eip1193';
+
 export {
+  collectErrorText,
   collectHexStrings,
   extractRevertData,
   isUserRejection,
-  request,
-} from './eip1193';
+} from './errors/provider';
 
 export { checkPhylaxRouting, type RoutingCheck } from './connection';
 
@@ -36,6 +54,7 @@ export { buildAddChainParams, manualInstructions, resolveConfig } from './config
 
 export {
   asAddress,
+  asAssertionId,
   asChainId,
   asHex,
   asHexQuantity,
@@ -43,6 +62,7 @@ export {
   asRpcUrl,
   asWalletRdns,
   isAddress,
+  isAssertionId,
   isChainId,
   isHex,
   isHexQuantity,

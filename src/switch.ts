@@ -1,7 +1,8 @@
 import { buildAddChainParams } from './config';
 import { checkPhylaxRouting } from './connection';
 import { detectOffPhylax } from './detect';
-import { isUserRejection, request } from './eip1193';
+import { request } from './eip1193';
+import { isUserRejection } from './errors/provider';
 import { readProp } from './guards';
 import { toHexChainId } from './hex';
 import type { DetectionResult, SwitchOptions, SwitchResult } from './types';

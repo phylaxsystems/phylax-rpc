@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConfig } from '../src/config';
 import {
   buildPreflightParams,
@@ -6,6 +6,7 @@ import {
   normalizeTransaction,
 } from '../src/detect';
 import type { LooseTransactionRequest, TransactionRequest } from '../src/types';
+import { RETRY_DELAYS } from '../src/errors/retry';
 import { assertStatus, errorStringRevert, firstArg, MockProvider } from './helpers';
 
 const config = resolveConfig({ rpcUrl: 'https://rpc.phylax.example' });
@@ -114,6 +115,76 @@ describe('detectOffPhylax', () => {
     expect(result.offPhylax).toBe(true);
   });
 
+  // The default matcher looks for "credible" anywhere in the reason, which the gate's own
+  // rejection contains.
+  it('treats a Credible RPC assertion rejection as a revert, never as off-phylax', async () => {
+    const id = '0x' + 'ab'.repeat(32);
+    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+      throw errorStringRevert(`credible layer: transaction rejected by assertion ${id}`);
+    });
+
+    const result = await detectOffPhylax({ provider, transaction: tx, config });
+
+    assertStatus(result, 'reverted');
+    expect(result.offPhylax).toBe(false);
+    expect(result.assertionRejection).toEqual({ assertions: [id], omitted: 0 });
+  });
+
+  it('reports the assertions a capped rejection named and the count it left out', async () => {
+    const ids = Array.from({ length: 10 }, (_, i) => '0x' + i.toString(16).repeat(64).slice(0, 64));
+    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+      throw errorStringRevert(
+        `credible layer: transaction rejected by assertions ${ids.join(', ')}, and 3 more`,
+      );
+    });
+
+    const result = await detectOffPhylax({ provider, transaction: tx, config });
+
+    assertStatus(result, 'reverted');
+    expect(result.assertionRejection).toEqual({ assertions: ids, omitted: 3 });
+  });
+
+  // Wording the parser does not know is still not a routing signal.
+  it('keeps an unparsable gate revert off the switch path', async () => {
+    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+      throw errorStringRevert('credible layer: transaction refused by assertion 0xabcd');
+    });
+
+    const result = await detectOffPhylax({ provider, transaction: tx, config });
+
+    assertStatus(result, 'reverted');
+    expect(result.offPhylax).toBe(false);
+    expect(result.assertionRejection).toBeUndefined();
+  });
+
+  // A custom matcher narrows what counts as off-phylax; it must not widen it back to the gate.
+  it('does not let a custom credibleRevertMatch reclaim a gate rejection', async () => {
+    const loose = resolveConfig({
+      rpcUrl: config.rpcUrl,
+      credibleRevertMatch: /rejected by assertion/,
+    });
+    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+      throw errorStringRevert('credible layer: transaction rejected by an assertion');
+    });
+
+    const result = await detectOffPhylax({ provider, transaction: tx, config: loose });
+
+    assertStatus(result, 'reverted');
+    expect(result.offPhylax).toBe(false);
+    expect(result.assertionRejection).toEqual({ assertions: [], omitted: 0 });
+  });
+
+  it('leaves an ordinary revert without assertion metadata', async () => {
+    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+      throw errorStringRevert('ERC20: transfer amount exceeds balance');
+    });
+
+    const result = await detectOffPhylax({ provider, transaction: tx, config });
+
+    assertStatus(result, 'reverted');
+    expect(result.assertionRejection).toBeUndefined();
+  });
+
   it('treats a non-credible Error(string) as a genuine revert, not a routing issue', async () => {
     const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
       throw errorStringRevert('ERC20: transfer amount exceeds balance');
@@ -135,11 +206,26 @@ describe('detectOffPhylax', () => {
     expect(result.revertReason).toBeUndefined();
   });
 
+  // The gate refusing to judge is a node condition, not a verdict, and carries no revert data.
+  it('is inconclusive when the gate reports assertions unavailable', async () => {
+    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+      throw Object.assign(
+        new Error('credible layer: assertions are unavailable, try again shortly'),
+        { code: -32603 },
+      );
+    });
+
+    const result = await detectOffPhylax({ provider, transaction: tx, config, retry: false });
+
+    expect(result.status).toBe('inconclusive');
+    expect(result.offPhylax).toBe(false);
+  });
+
   it('is inconclusive when no revert data can be decoded', async () => {
     const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
       throw new Error('fetch failed: ECONNRESET');
     });
-    const result = await detectOffPhylax({ provider, transaction: tx, config });
+    const result = await detectOffPhylax({ provider, transaction: tx, config, retry: false });
     expect(result.status).toBe('inconclusive');
   });
 
@@ -225,5 +311,162 @@ describe('detectOffPhylax', () => {
     expect(error).toBeInstanceOf(Error);
     if (error instanceof Error) expect(error.message).toMatch(/no `from`/);
     expect(provider.callsTo('eth_estimateGas')).toHaveLength(0);
+  });
+});
+
+// An inconclusive answer that cannot say why leaves a caller string-matching the error, which
+// is the habit this whole contract exists to remove.
+describe('detectOffPhylax inconclusive reasons', () => {
+  it.each([
+    [
+      'the gate cannot judge yet',
+      () => {
+        throw Object.assign(
+          new Error('credible layer: assertions are unavailable, try again shortly'),
+          { code: -32603 },
+        );
+      },
+      'assertions-unavailable',
+      true,
+    ],
+    [
+      'the request never landed',
+      () => {
+        throw new Error('fetch failed: ECONNRESET');
+      },
+      'transport',
+      true,
+    ],
+    [
+      'the sender cannot pay',
+      () => {
+        throw Object.assign(new Error('insufficient funds for gas * price + value'), {
+          code: -32000,
+        });
+      },
+      'invalid-transaction',
+      false,
+    ],
+    [
+      'nothing recognisable',
+      () => {
+        throw new Error('something went sideways');
+      },
+      'unknown',
+      false,
+    ],
+  ])('says %s', async (_label, handler, reason, retryable) => {
+    const provider = new MockProvider().setHandlers('eth_estimateGas', handler);
+
+    const result = await detectOffPhylax({
+      provider,
+      transaction: tx,
+      config,
+      retry: false,
+    });
+
+    assertStatus(result, 'inconclusive');
+    expect(result.reason).toBe(reason);
+    expect(result.retryable).toBe(retryable);
+  });
+
+  it('says so when there is no sender to preflight as', async () => {
+    const provider = new MockProvider().setHandlers('eth_accounts', () => []);
+
+    const result = await detectOffPhylax({
+      provider,
+      transaction: { to: '0x' + '22'.repeat(20) },
+      config,
+    });
+
+    assertStatus(result, 'inconclusive');
+    expect(result.reason).toBe('no-sender');
+    expect(result.retryable).toBe(false);
+  });
+});
+
+// The preflight is a read, so reissuing it cannot double-submit; what matters is that only a
+// transient refusal is reissued, and that a user is not left waiting on one that never clears.
+describe('detectOffPhylax retries', () => {
+  const unavailable = (): never => {
+    throw Object.assign(new Error('credible layer: assertions are unavailable, try again shortly'), {
+      code: -32603,
+    });
+  };
+  const centred = { random: () => 0.5 };
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('waits out the backoff, then answers with the attempt that lands', async () => {
+    const provider = new MockProvider().setHandlers(
+      'eth_estimateGas',
+      unavailable,
+      unavailable,
+      () => '0x5208',
+    );
+
+    const pending = detectOffPhylax({ provider, transaction: tx, config, retry: centred });
+
+    await vi.advanceTimersByTimeAsync(249);
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(2);
+
+    await vi.runAllTimersAsync();
+    expect((await pending).status).toBe('on-phylax');
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(3);
+  });
+
+  it('gives up after the budget instead of looping', async () => {
+    const provider = new MockProvider().setHandlers('eth_estimateGas', unavailable);
+
+    const pending = detectOffPhylax({ provider, transaction: tx, config, retry: centred });
+    await vi.runAllTimersAsync();
+
+    expect((await pending).status).toBe('inconclusive');
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(RETRY_DELAYS.length + 1);
+  });
+
+  // Retrying a verdict only delays telling the caller what the node already decided.
+  it('never retries a verdict', async () => {
+    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+      throw errorStringRevert(`credible layer: transaction rejected by assertion 0x${'ab'.repeat(32)}`);
+    });
+
+    const pending = detectOffPhylax({ provider, transaction: tx, config, retry: centred });
+    await vi.runAllTimersAsync();
+
+    assertStatus(await pending, 'reverted');
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
+  });
+
+  it('answers with the first attempt when retrying is switched off', async () => {
+    const provider = new MockProvider().setHandlers('eth_estimateGas', unavailable);
+
+    const pending = detectOffPhylax({ provider, transaction: tx, config, retry: false });
+    await vi.runAllTimersAsync();
+
+    expect((await pending).status).toBe('inconclusive');
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
+  });
+
+  it('stops when the caller aborts mid-backoff', async () => {
+    const provider = new MockProvider().setHandlers('eth_estimateGas', unavailable);
+    const controller = new AbortController();
+
+    const pending = detectOffPhylax({
+      provider,
+      transaction: tx,
+      config,
+      retry: { ...centred, signal: controller.signal },
+    });
+
+    await vi.advanceTimersByTimeAsync(1);
+    controller.abort();
+    await vi.runAllTimersAsync();
+
+    expect((await pending).status).toBe('inconclusive');
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
   });
 });

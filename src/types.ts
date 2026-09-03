@@ -1,3 +1,6 @@
+import type { RpcFailure } from './errors/rpc';
+import type { RetryPolicy } from './errors/retry';
+
 /**
  * Canonical type surface for the SDK. Every public type lives here so the release API is
  * described in one place; runtime guards/constructors for the branded primitives are in
@@ -27,6 +30,8 @@ export type WalletRdns = Branded<string, 'WalletRdns'>;
 export type Uuid = Branded<string, 'UUID'>;
 /** A non-negative duration in milliseconds. */
 export type Milliseconds = Branded<number, 'Milliseconds'>;
+/** An assertion identifier: a 32-byte registry id (`0x…`) or a `native:<name>`. */
+export type AssertionId = Branded<string, 'AssertionId'>;
 
 // ---------------------------------------------------------------------------
 // JSON-RPC method names
@@ -243,6 +248,23 @@ export interface WalletClassification {
 export type DetectionStatus = DetectionResult['status'];
 
 /**
+ * The assertions a Credible RPC rejection named, and how many it left out.
+ *
+ * The RPC names a bounded number of the assertions that objected and reports the remainder as a
+ * count. Both fields describe distinct assertions: one that objected at several call sites
+ * appears once in `assertions` and contributes once to `omitted`.
+ */
+export type AssertionRejection = Readonly<{
+  /**
+   * Ids as the RPC named them, in that order. Empty when the rejection attributed itself to no
+   * assertion.
+   */
+  assertions: readonly AssertionId[];
+  /** Assertions that objected beyond the named ones; `0` when `assertions` holds them all. */
+  omitted: number;
+}>;
+
+/**
  * Outcome of the off-Phylax preflight probe. A discriminated union on `status`, so each
  * state carries exactly the fields it can have — no contradictory combinations.
  */
@@ -263,11 +285,34 @@ export type DetectionResult =
       offPhylax: false;
       /** Decoded `Error(string)` reason, when the revert used that selector. */
       revertReason?: string;
+      /**
+       * Set when the revert came from the Credible RPC's assertion gate and its reason parsed.
+       * Absent for wording the parser does not recognise; `status` is `reverted` either way.
+       */
+      assertionRejection?: AssertionRejection;
       revertData: Hex;
       error: unknown;
     }>
-  /** No decodable revert data (network error, opaque shape). Cannot conclude. */
-  | Readonly<{ status: 'inconclusive'; offPhylax: false; error: unknown }>;
+  /** Nothing about routing could be concluded. `reason` says what stopped it. */
+  | Readonly<{
+      status: 'inconclusive';
+      offPhylax: false;
+      reason: InconclusiveReason;
+      /** Whether the same probe could succeed later. Only the RPC's transient conditions. */
+      retryable: boolean;
+      error: unknown;
+    }>;
+
+/**
+ * Why a probe reached no conclusion.
+ *
+ * Every classifier outcome that is not a revert, plus the one condition detection reaches on
+ * its own: no sender to preflight as. Derived from the classifier so a kind added there has to
+ * be accounted for here.
+ */
+export type InconclusiveReason =
+  | Exclude<RpcFailure['kind'], 'assertion-rejected' | 'reverted'>
+  | 'no-sender';
 
 // ---------------------------------------------------------------------------
 // Switch result (discriminated union)
@@ -352,6 +397,11 @@ export interface DetectOptions {
    * wallet popup). An `eth_requestAccounts` prompt is never triggered from here.
    */
   readonly account?: string;
+  /**
+   * How a transient refusal is retried, or `false` to answer with the first attempt. Only the
+   * conditions the RPC calls transient are retried; a verdict never is.
+   */
+  readonly retry?: RetryPolicy | false;
 }
 
 export interface SwitchOptions {
@@ -377,6 +427,7 @@ export interface DetectArgs {
   readonly transaction: LooseTransactionRequest;
   readonly method?: PreflightMethod;
   readonly account?: string;
+  readonly retry?: RetryPolicy | false;
 }
 
 /** {@link SwitchOptions} without `config` — the config is bound by the client/hook. */

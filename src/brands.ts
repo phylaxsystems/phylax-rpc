@@ -1,5 +1,6 @@
 import type {
   Address,
+  AssertionId,
   ChainId,
   Hex,
   HexQuantity,
@@ -22,6 +23,8 @@ const HEX_QUANTITY_RE = /^0x(0|[1-9a-fA-F][0-9a-fA-F]*)$/;
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RDNS_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
+// A native name carries no comma, which is what separates ids in a rejection reason.
+const ASSERTION_ID_RE = /^(?:0x[0-9a-fA-F]{64}|native:[^,]+)$/;
 
 /** Whether `value` is `0x`-prefixed whole-byte hex data. */
 export function isHex(value: unknown): value is Hex {
@@ -116,6 +119,19 @@ export function asWalletRdns(value: unknown): WalletRdns | undefined {
 /** Whether `value` is an RFC 4122 version 4 UUID, as required by EIP-6963. */
 export function isUuid(value: unknown): value is Uuid {
   return typeof value === 'string' && UUID_V4_RE.test(value);
+}
+
+/** Whether `value` is a 32-byte registry id (`0x…`) or a `native:<name>` assertion name. */
+export function isAssertionId(value: unknown): value is AssertionId {
+  return typeof value === 'string' && ASSERTION_ID_RE.test(value);
+}
+
+/** Assert `value` is a registry id or a namespaced native assertion name. */
+export function asAssertionId(value: unknown): AssertionId {
+  if (!isAssertionId(value)) {
+    throw new TypeError(`Expected a 32-byte 0x id or native:<name>, got ${String(value)}`);
+  }
+  return value;
 }
 
 /** Whether `value` is a non-negative, finite millisecond duration. */
