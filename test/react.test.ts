@@ -1,5 +1,5 @@
-import { createElement } from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, createElement } from 'react';
+import { create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { isUuid, isWalletRdns } from '../src/brands';
 import {
@@ -189,5 +189,29 @@ describe('usePhylaxRpcSwitch', () => {
 
     expect(hook.getResult().detection).toBeUndefined();
     hook.renderer.unmount();
+  });
+});
+
+describe('usePhylaxRpcSwitch retry passthrough', () => {
+  it('forwards the retry policy to the probe', async () => {
+    const unavailable = (): never => {
+      throw Object.assign(
+        new Error('credible layer: assertions are unavailable, try again shortly'),
+        { code: -32603 },
+      );
+    };
+    const provider = new MockProvider().setHandlers(
+      'eth_estimateGas',
+      unavailable,
+      () => '0x5208',
+    );
+    const hook = renderHook();
+
+    await act(async () => {
+      await hook.getResult().detect({ provider, transaction, retry: false });
+    });
+
+    expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
+    expect(hook.getResult().detection?.status).toBe('inconclusive');
   });
 });

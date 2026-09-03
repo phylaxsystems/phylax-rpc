@@ -1,0 +1,21 @@
+---
+'@phylax-systems/phylax-rpc': minor
+---
+
+Recognise assertion rejections as verdicts rather than a routing signal. The default revert
+matcher also matched the Credible RPC's own rejection wording, so a transaction an assertion
+refused was classified `off-phylax` and the SDK offered a switch to the network the caller had
+already reached. Rejections now classify as `reverted`, and `assertionRejection` carries the
+assertion ids the RPC named plus a count of any beyond the ten it names.
+
+Error recognition moved into `src/errors` behind one classifier with an explicit precedence:
+the EIP-1193 rejection code, then ABI revert data, then a wallet's dismissal wording, then the
+messages the RPC documents, then node wording. An `inconclusive` result now carries `reason`
+and `retryable`, so a transient gate condition is distinguishable from an underfunded sender,
+and the transient ones are retried automatically — three retries with jittered backoff, shared
+across detection's provider reads and overridable per call up to `MAX_RETRY_ATTEMPTS`. Assertion
+ids are a branded type.
+
+Standard provider transport wrappers, empty-data execution reverts, and viem's complete set of
+invalid-transaction aliases are classified explicitly. Transient sender lookup failures share the
+same bounded retry budget as the preflight instead of being reported as a missing account.

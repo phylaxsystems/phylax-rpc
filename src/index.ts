@@ -11,6 +11,8 @@ export { isConnectedToPhylax, PHYLAX_ROUTING_SIGNAL_V1 } from './connection';
 
 export { detectOffPhylax } from './detect';
 
+export type { RpcFailure } from './errors/rpc';
+
 export {
   classifyDetail,
   classifyWallet,
@@ -35,6 +37,8 @@ export type {
 export type {
   Address,
   AddEthereumChainParameter,
+  AssertionId,
+  AssertionRejection,
   ChainId,
   ClassifyInput,
   ConnectedAccountLike,
@@ -45,6 +49,7 @@ export type {
   DetectOptions,
   DetectionResult,
   DetectionStatus,
+  InconclusiveReason,
   DiscoverOptions,
   DiscoveryTarget,
   Eip1193Provider,

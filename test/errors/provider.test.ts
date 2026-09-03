@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { extractRevertData, isUserRejection } from '../src/eip1193';
-import { encodeErrorString } from './helpers';
+import {
+  extractRevertData,
+  hasUserRejectionCode,
+  isProviderDisconnected,
+  isUserRejection,
+} from '../../src/errors/provider';
+import { encodeErrorString } from '../helpers';
 
 describe('extractRevertData', () => {
   const data = encodeErrorString('assertion failed');
@@ -125,5 +130,30 @@ describe('isUserRejection', () => {
     expect(isUserRejection(new Error('boom'))).toBe(false);
     // A bare "denied" in a contract revert message must not read as a user rejection.
     expect(isUserRejection({ message: 'transfer denied by contract guard' })).toBe(false);
+  });
+});
+
+describe('hasUserRejectionCode', () => {
+  it('reads the code without the wording', () => {
+    expect(hasUserRejectionCode({ code: 4001 })).toBe(true);
+    expect(hasUserRejectionCode({ error: { code: 'ACTION_REJECTED' } })).toBe(true);
+  });
+
+  // The wording alone also arrives as a contract's own Error(string) revert, so a classifier
+  // ranking structural evidence needs the code on its own.
+  it('does not read the wording as a code', () => {
+    expect(hasUserRejectionCode({ message: 'User rejected the request' })).toBe(false);
+  });
+});
+
+describe('isProviderDisconnected', () => {
+  it('matches both EIP-1193 disconnection codes, including wrappers', () => {
+    expect(isProviderDisconnected({ code: 4900 })).toBe(true);
+    expect(isProviderDisconnected({ cause: { code: 4901 } })).toBe(true);
+  });
+
+  it('does not match unrelated errors', () => {
+    expect(isProviderDisconnected({ code: 4001 })).toBe(false);
+    expect(isProviderDisconnected(new Error('boom'))).toBe(false);
   });
 });

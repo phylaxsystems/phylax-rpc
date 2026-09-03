@@ -60,6 +60,7 @@ export class PhylaxRpcSwitch {
       transaction: args.transaction,
       method: args.method,
       account: args.account,
+      retry: args.retry,
       config: this.config,
     });
   }
