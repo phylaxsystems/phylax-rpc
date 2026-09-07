@@ -23,7 +23,7 @@ describe('PhylaxRpcSwitch', () => {
       );
     };
     const provider = new MockProvider().setHandlers(
-      'eth_estimateGas',
+      'eth_call',
       unavailable,
       () => '0x5208',
     );
@@ -34,7 +34,7 @@ describe('PhylaxRpcSwitch', () => {
       retry: false,
     });
 
-    expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
+    expect(provider.callsTo('eth_call')).toHaveLength(1);
     expect(result.status).toBe('inconclusive');
   });
 
@@ -69,7 +69,7 @@ describe('PhylaxRpcSwitch', () => {
   });
 
   it('delegates detect to the configured matcher', async () => {
-    const provider = new MockProvider().setHandlers('eth_estimateGas', () => {
+    const provider = new MockProvider().setHandlers('eth_call', () => {
       throw errorStringRevert('assertion failed');
     });
     const result = await client.detect({

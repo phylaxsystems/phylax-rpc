@@ -79,6 +79,7 @@ export class PhylaxRpcSwitch {
       provider: args.provider,
       wallet: args.wallet,
       verifyTransaction: args.verifyTransaction,
+      method: args.method,
       account: args.account,
       force: args.force,
       config: this.config,

@@ -1,4 +1,7 @@
 import { request } from './eip1193';
+import { isHex } from './brands';
+import { readProp } from './guards';
+import { PREFLIGHT_METHODS } from './constants';
 import { classifyRpcError, type RpcFailure } from './errors/rpc';
 import {
   isTransient,
@@ -78,7 +81,55 @@ export function buildPreflightParams(
   method: PreflightMethod,
 ): unknown[] {
   const normalized = normalizeTransaction(transaction);
-  return method === 'eth_call' ? [normalized, 'latest'] : [normalized];
+  switch (method) {
+    case PREFLIGHT_METHODS.call:
+      return [normalized, 'latest'];
+    case PREFLIGHT_METHODS.estimateGas:
+      return [normalized];
+    case PREFLIGHT_METHODS.simulateV1:
+      return [{ blockStateCalls: [{ calls: [normalized] }], validation: false }, 'latest'];
+  }
+}
+
+/** A successful RPC response can still contain a failed simulated transaction. */
+function checkSimulationResult(result: unknown): RequestResult {
+  const calls = Array.isArray(result) && result.length === 1
+    ? readProp(result[0], 'calls')
+    : undefined;
+  const call = Array.isArray(calls) && calls.length === 1 ? calls[0] : undefined;
+  const status = readProp(call, 'status');
+  const returnData = readProp(call, 'returnData');
+  const error = readProp(call, 'error');
+
+  if (
+    !isHex(returnData) ||
+    (status !== '0x0' && status !== '0x1') ||
+    (status === '0x1' && error != null)
+  ) {
+    return {
+      ok: false,
+      failure: { kind: 'unknown' },
+      error: new TypeError('eth_simulateV1 returned an invalid single-transaction result'),
+    };
+  }
+  if (status === '0x0') {
+    const executionError = { cause: error, data: returnData };
+    let failure = classifyRpcError(executionError);
+    // The shared classifier filters for ABI-shaped data; simulation can return arbitrary bytes.
+    if (failure.kind === 'reverted' && failure.data === '0x') {
+      failure = { ...failure, data: returnData };
+    }
+    // Zero status proves execution failed even without revert data or familiar node wording.
+    // Keep decoded routing/assertion evidence, but never retry a completed failed execution.
+    return {
+      ok: false,
+      failure: failure.kind === 'reverted' || failure.kind === 'assertion-rejected'
+        ? failure
+        : { kind: 'reverted', data: returnData },
+      error: executionError,
+    };
+  }
+  return { ok: true, value: result };
 }
 
 type RequestResult =
@@ -114,7 +165,7 @@ async function requestWithRetry(
 
 /**
  * Detect whether the wallet is routed off the Phylax RPC by running the SDK's *own*
- * preflight (`eth_estimateGas`/`eth_call`) and recognising the credible-require revert.
+ * preflight, `eth_call` by default, and recognising the credible-require revert.
  *
  * - Preflight succeeds → on Phylax (the Phylax RPC answers the require as-if in a
  *   credible block), or the tx is simply not credible-protected. Either way: no switch.
@@ -132,7 +183,7 @@ async function requestWithRetry(
  */
 export async function detectOffPhylax(options: DetectOptions): Promise<DetectionResult> {
   const { provider, config } = options;
-  const method = options.method ?? 'eth_estimateGas';
+  const method = options.method ?? PREFLIGHT_METHODS.call;
   const retryState: RetryState = { attempts: 0 };
 
   // Resolve the sender: explicit tx `from` → `options.account` → silent `eth_accounts`.
@@ -174,11 +225,14 @@ export async function detectOffPhylax(options: DetectOptions): Promise<Detection
     : { ...options.transaction, from };
   const params = buildPreflightParams(transaction, method);
 
-  const preflight = await requestWithRetry(
+  const response = await requestWithRetry(
     () => request(provider, method, params),
     options.retry,
     retryState,
   );
+  const preflight = response.ok && method === PREFLIGHT_METHODS.simulateV1
+    ? checkSimulationResult(response.value)
+    : response;
   if (preflight.ok) return { status: 'on-phylax', offPhylax: false };
 
   const { failure, error } = preflight;

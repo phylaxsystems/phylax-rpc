@@ -2,6 +2,8 @@ import { act, createElement } from 'react';
 import { create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { isUuid, isWalletRdns } from '../src/brands';
+import { PREFLIGHT_METHODS, WALLET_RDNS } from '../src/constants';
+import { classifyWallet } from '../src/wallets';
 import {
   usePhylaxRpcSwitch,
   type UsePhylaxRpcSwitchResult,
@@ -11,7 +13,7 @@ import type {
   Eip6963ProviderDetail,
   PhylaxRpcConfig,
 } from '../src/types';
-import { errorStringRevert, MockProvider } from './helpers';
+import { encodeErrorString, errorStringRevert, MockProvider } from './helpers';
 
 const config = { rpcUrl: 'https://rpc.phylax.example' };
 const transaction = {
@@ -70,10 +72,51 @@ function renderHook(
 }
 
 describe('usePhylaxRpcSwitch', () => {
+  it.each([PREFLIGHT_METHODS.estimateGas, PREFLIGHT_METHODS.simulateV1])(
+    'carries %s through both switch compatibility probes',
+    async (method) => {
+      const provider = new MockProvider()
+        .setHandlers('eth_chainId', () => '0x1')
+        .setHandlers('eth_call', () => '0x' + '0'.repeat(64))
+        .setHandlers('wallet_addEthereumChain', () => null)
+        .setHandlers('wallet_switchEthereumChain', () => null)
+        .setHandlers(
+          method,
+          () => {
+            if (method === PREFLIGHT_METHODS.simulateV1) {
+              return [{ calls: [{
+                status: '0x0',
+                returnData: encodeErrorString('assertion failed'),
+              }] }];
+            }
+            throw errorStringRevert('assertion failed');
+          },
+          () => method === PREFLIGHT_METHODS.simulateV1
+            ? [{ calls: [{ status: '0x1', returnData: '0x' }] }]
+            : '0x5208',
+        );
+      const wallet = classifyWallet({ rdns: WALLET_RDNS.zerion, platform: 'extension' });
+      const hook = renderHook();
+      try {
+        await act(async () => {
+          await hook.getResult().attemptSwitch({
+            provider, wallet, verifyTransaction: transaction, method,
+          });
+        });
+
+        expect(hook.getResult().switchResult?.outcome).toBe('activated');
+        expect(hook.getResult().connectedToPhylax).toBe(true);
+        expect(provider.callsTo(method)).toHaveLength(2);
+      } finally {
+        hook.renderer.unmount();
+      }
+    },
+  );
+
   it('keeps the newest detection result when an older call finishes last', async () => {
     const slow = deferred<unknown>();
-    const slowProvider = new MockProvider().setHandlers('eth_estimateGas', () => slow.promise);
-    const fastProvider = new MockProvider().setHandlers('eth_estimateGas', () => '0x5208');
+    const slowProvider = new MockProvider().setHandlers('eth_call', () => slow.promise);
+    const fastProvider = new MockProvider().setHandlers('eth_call', () => '0x5208');
     const hook = renderHook();
 
     let slowCall!: Promise<unknown>;
@@ -162,7 +205,7 @@ describe('usePhylaxRpcSwitch', () => {
     });
 
     await act(async () => {
-      oldProvider.resolve(new MockProvider().setHandlers('eth_estimateGas', () => '0x5208'));
+      oldProvider.resolve(new MockProvider().setHandlers('eth_call', () => '0x5208'));
       await expect(detection).rejects.toThrow(/no provider/);
     });
 
@@ -173,7 +216,7 @@ describe('usePhylaxRpcSwitch', () => {
 
   it('does not commit operation state from a superseded client config', async () => {
     const slow = deferred<unknown>();
-    const provider = new MockProvider().setHandlers('eth_estimateGas', () => slow.promise);
+    const provider = new MockProvider().setHandlers('eth_call', () => slow.promise);
     const hook = renderHook();
 
     let detection!: Promise<unknown>;
@@ -201,7 +244,7 @@ describe('usePhylaxRpcSwitch retry passthrough', () => {
       );
     };
     const provider = new MockProvider().setHandlers(
-      'eth_estimateGas',
+      'eth_call',
       unavailable,
       () => '0x5208',
     );
@@ -211,7 +254,7 @@ describe('usePhylaxRpcSwitch retry passthrough', () => {
       await hook.getResult().detect({ provider, transaction, retry: false });
     });
 
-    expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
+    expect(provider.callsTo('eth_call')).toHaveLength(1);
     expect(hook.getResult().detection?.status).toBe('inconclusive');
   });
 });

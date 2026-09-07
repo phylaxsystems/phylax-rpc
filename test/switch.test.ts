@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { PhylaxRpcSwitch } from '../src/client';
 import { resolveConfig } from '../src/config';
 import { attemptSwitch } from '../src/switch';
 import { classifyWallet } from '../src/wallets';
-import { WALLET_RDNS } from '../src/constants';
+import { PREFLIGHT_METHODS, WALLET_RDNS } from '../src/constants';
 import type { TransactionRequest, WalletClassification } from '../src/types';
 import {
   assertOutcome,
+  encodeErrorString,
   errorStringRevert,
   firstArg,
   MockProvider,
@@ -35,7 +37,49 @@ function routingProvider(...callWords: string[]): MockProvider {
     .setHandlers('wallet_switchEthereumChain', () => null);
 }
 
+/** Keep routing reads separate from transaction probes now that both use eth_call. */
+function compatibilityProvider(...probes: Array<() => unknown>): MockProvider {
+  return routingProvider(FALSE_WORD).setHandlers('eth_call', (params) => {
+    if (firstArg({ params }).to !== tx.to) return FALSE_WORD;
+    const probe = probes.length > 1 ? probes.shift() : probes[0];
+    if (!probe) throw new Error('expected a transaction probe handler');
+    return probe();
+  });
+}
+
 describe('attemptSwitch', () => {
+  it.each([PREFLIGHT_METHODS.estimateGas, PREFLIGHT_METHODS.simulateV1])(
+    'verifies activation with %s through the public client',
+    async (method) => {
+      const provider = routingProvider(FALSE_WORD).setHandlers(
+        method,
+        () => {
+          if (method === PREFLIGHT_METHODS.simulateV1) {
+            return [{ calls: [{
+              status: '0x0',
+              returnData: encodeErrorString('assertion failed'),
+            }] }];
+          }
+          throw errorStringRevert('assertion failed');
+        },
+        () => method === PREFLIGHT_METHODS.simulateV1
+          ? [{ calls: [{ status: '0x1', returnData: '0x' }] }]
+          : '0x5208',
+      );
+      const client = new PhylaxRpcSwitch({ rpcUrl: config.rpcUrl });
+
+      const result = await client.switch({
+        provider, wallet: zerionExt, verifyTransaction: tx, method,
+      });
+
+      expect(result).toMatchObject({
+        outcome: 'activated', added: true, switched: true, manualFallback: false,
+      });
+      expect(provider.callsTo(method)).toHaveLength(2);
+      expect(provider.callsTo('eth_call').some((call) => firstArg(call).to === tx.to)).toBe(false);
+    },
+  );
+
   it('short-circuits to manual fallback for non-allowlisted wallets', async () => {
     const provider = new MockProvider();
     const result = await attemptSwitch({ provider, wallet: mmExt, config, verifyTransaction: tx });
@@ -81,8 +125,7 @@ describe('attemptSwitch', () => {
   });
 
   it('activates when the compatibility probe shows an off→on transition', async () => {
-    const provider = routingProvider(FALSE_WORD).setHandlers(
-      'eth_estimateGas',
+    const provider = compatibilityProvider(
       () => {
         throw errorStringRevert('assertion failed'); // baseline: off-Phylax (probe is protected)
       },
@@ -103,7 +146,7 @@ describe('attemptSwitch', () => {
     const provider = new MockProvider()
       .setHandlers('eth_chainId', () => '0xa')
       .setHandlers(
-        'eth_estimateGas',
+        'eth_call',
         () => {
           throw errorStringRevert('assertion failed');
         },
@@ -127,7 +170,7 @@ describe('attemptSwitch', () => {
   it('does NOT confirm activation from a bare preflight success (probe not proven protected)', async () => {
     // Preflight passes both before and after — the probe never demonstrated protection, so
     // its success is ambiguous and must not be reported as activation.
-    const provider = routingProvider(FALSE_WORD).setHandlers('eth_estimateGas', () => '0x5208');
+    const provider = compatibilityProvider(() => '0x');
     const result = await attemptSwitch({ provider, wallet: zerionExt, config, verifyTransaction: tx });
     assertOutcome(result, 'unverified');
     expect(result.manualFallback).toBe(true);
@@ -143,7 +186,7 @@ describe('attemptSwitch', () => {
 
   it('falls back to manual when the wallet accepts-then-ignores the URL', async () => {
     // The probe keeps reverting off-Phylax before and after — never activated.
-    const provider = routingProvider(FALSE_WORD).setHandlers('eth_estimateGas', () => {
+    const provider = compatibilityProvider(() => {
       throw errorStringRevert('assertion failed');
     });
     const result = await attemptSwitch({ provider, wallet: zerionExt, config, verifyTransaction: tx });

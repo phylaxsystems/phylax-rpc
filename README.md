@@ -102,6 +102,25 @@ helpers) live under `@phylax-systems/phylax-rpc/advanced`.
 
 See `examples/wagmi-swap-guard.tsx` for an end-to-end wagmi integration.
 
+### Preflight method
+
+`detect` defaults to `eth_call` at `latest`. Override with `estimateGas` for
+estimation behavior or `simulateV1` for a single-transaction simulation (provider support required):
+
+```ts
+import { PREFLIGHT_METHODS } from '@phylax-systems/phylax-rpc';
+
+await phylax.detect({ provider, transaction, method: PREFLIGHT_METHODS.estimateGas });
+```
+
+Method strings (`'eth_estimateGas'`, `'eth_simulateV1'`) also work.
+When using `switch` with `verifyTransaction`, pass the same `method` to use it for both
+compatibility probes. The React hook's `attemptSwitch` accepts the same option.
+For every method, `detect` removes `gas` and `gasLimit` from the preflight request.
+The provider chooses the probe's gas budget, so a successful preflight does not guarantee
+that the submitted transaction will succeed with its gas limit.
+Await the preflight before wallet submission and stop on rejection.
+
 ### Error responses
 
 `detect` says whose problem a failed preflight is:

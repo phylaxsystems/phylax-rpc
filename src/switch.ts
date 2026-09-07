@@ -50,6 +50,7 @@ export async function attemptSwitch(options: SwitchOptions): Promise<SwitchResul
     baseline = await detectOffPhylax({
       provider,
       transaction: options.verifyTransaction,
+      method: options.method,
       account: options.account,
       config,
     });
@@ -99,6 +100,7 @@ export async function attemptSwitch(options: SwitchOptions): Promise<SwitchResul
     const verification = await detectOffPhylax({
       provider,
       transaction: options.verifyTransaction,
+      method: options.method,
       account: options.account,
       config,
     });
