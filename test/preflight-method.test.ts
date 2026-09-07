@@ -87,21 +87,24 @@ describe('eth_simulateV1 results', () => {
   });
 
   it.each([
-    [{ code: 3, message: 'execution reverted' }, 'reverted', undefined],
-    [{ code: -32000, message: 'insufficient funds for gas * price + value' }, 'inconclusive', 'invalid-transaction'],
-    [{ code: -32603, message: 'credible layer: assertions are unavailable, try again shortly' }, 'inconclusive', 'assertions-unavailable'],
-    [{ code: -32000, message: 'unknown failure' }, 'inconclusive', 'unknown'],
-  ])('preserves nested failure classification with empty returnData: %j', async (error, status, failureReason) => {
+    { code: 3, message: 'execution reverted' },
+    { code: -32015, message: 'out of gas' },
+    { code: -32015, message: 'invalid opcode: INVALID' },
+    { code: -32000, message: 'insufficient funds for gas * price + value' },
+    { code: -32603, message: 'credible layer: assertions are unavailable, try again shortly' },
+    { code: -32000, message: 'unknown failure' },
+    undefined,
+  ])('treats a zero status as execution failure with empty returnData: %j', async (error) => {
     const provider = new MockProvider().setHandlers(method, () => [{
       calls: [{ status: '0x0', returnData: '0x', error }],
     }]);
 
     const result = await detectOffPhylax({
-      provider, transaction, account, config, method, retry: false,
+      provider, transaction, account, config, method,
     });
 
-    expect(result.status).toBe(status);
-    if (result.status === 'inconclusive') expect(result.reason).toBe(failureReason);
+    expect(result).toMatchObject({ status: 'reverted', offPhylax: false, revertData: '0x' });
+    expect(provider.calls).toHaveLength(1);
   });
 
   it.each([

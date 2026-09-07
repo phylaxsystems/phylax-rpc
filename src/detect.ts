@@ -92,7 +92,7 @@ export function buildPreflightParams(
 }
 
 /** A successful RPC response can still contain a failed simulated transaction. */
-function checkSimulationResult(result: unknown): void {
+function checkSimulationResult(result: unknown): RequestResult {
   const calls = Array.isArray(result) && result.length === 1
     ? readProp(result[0], 'calls')
     : undefined;
@@ -106,13 +106,26 @@ function checkSimulationResult(result: unknown): void {
     (status !== '0x0' && status !== '0x1') ||
     (status === '0x1' && error != null)
   ) {
-    throw new TypeError('eth_simulateV1 returned an invalid single-transaction result');
+    return {
+      ok: false,
+      failure: { kind: 'unknown' },
+      error: new TypeError('eth_simulateV1 returned an invalid single-transaction result'),
+    };
   }
   if (status === '0x0') {
-    // Preserve the nested code/message and expose returnData to the shared revert decoder.
-    // Empty data alone is not revert evidence: invalid transactions can fail here too.
-    throw { cause: error, data: returnData };
+    const executionError = { cause: error, data: returnData };
+    const failure = classifyRpcError(executionError);
+    // Zero status proves execution failed even without revert data or familiar node wording.
+    // Keep decoded routing/assertion evidence, but never retry a completed failed execution.
+    return {
+      ok: false,
+      failure: failure.kind === 'reverted' || failure.kind === 'assertion-rejected'
+        ? failure
+        : { kind: 'reverted', data: returnData },
+      error: executionError,
+    };
   }
+  return { ok: true, value: result };
 }
 
 type RequestResult =
@@ -208,15 +221,14 @@ export async function detectOffPhylax(options: DetectOptions): Promise<Detection
     : { ...options.transaction, from };
   const params = buildPreflightParams(transaction, method);
 
-  const preflight = await requestWithRetry(
-    async () => {
-      const result = await request(provider, method, params);
-      if (method === PREFLIGHT_METHODS.simulateV1) checkSimulationResult(result);
-      return result;
-    },
+  const response = await requestWithRetry(
+    () => request(provider, method, params),
     options.retry,
     retryState,
   );
+  const preflight = response.ok && method === PREFLIGHT_METHODS.simulateV1
+    ? checkSimulationResult(response.value)
+    : response;
   if (preflight.ok) return { status: 'on-phylax', offPhylax: false };
 
   const { failure, error } = preflight;
