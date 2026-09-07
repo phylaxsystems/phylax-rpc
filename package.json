@@ -58,6 +58,7 @@
     "version-packages": "changeset version",
     "release": "changeset publish",
     "lint:package": "publint && attw --pack --profile esm-only",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
