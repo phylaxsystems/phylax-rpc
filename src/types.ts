@@ -1,5 +1,6 @@
 import type { RpcFailure } from './errors/rpc';
 import type { RetryPolicy } from './errors/retry';
+import type { PREFLIGHT_METHODS } from './constants';
 
 /**
  * Canonical type surface for the SDK. Every public type lives here so the release API is
@@ -42,13 +43,12 @@ export type RpcMethod =
   | 'eth_accounts'
   | 'eth_requestAccounts'
   | 'eth_chainId'
-  | 'eth_call'
-  | 'eth_estimateGas'
+  | PreflightMethod
   | 'wallet_addEthereumChain'
   | 'wallet_switchEthereumChain';
 
 /** Preflight method used by the off-Phylax detection probe. */
-export type PreflightMethod = 'eth_estimateGas' | 'eth_call';
+export type PreflightMethod = (typeof PREFLIGHT_METHODS)[keyof typeof PREFLIGHT_METHODS];
 
 // ---------------------------------------------------------------------------
 // EIP-1193 / EIP-6963
@@ -389,7 +389,7 @@ export interface DetectOptions {
   readonly provider: Eip1193Provider;
   readonly transaction: LooseTransactionRequest;
   readonly config: ResolvedPhylaxRpcConfig;
-  /** Preflight method. Defaults to `eth_estimateGas`. */
+  /** Preflight method. Defaults to `eth_call` at `latest`. */
   readonly method?: PreflightMethod;
   /**
    * The sender to preflight as, when the transaction omits `from`. If neither this nor

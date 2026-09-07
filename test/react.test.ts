@@ -72,8 +72,8 @@ function renderHook(
 describe('usePhylaxRpcSwitch', () => {
   it('keeps the newest detection result when an older call finishes last', async () => {
     const slow = deferred<unknown>();
-    const slowProvider = new MockProvider().setHandlers('eth_estimateGas', () => slow.promise);
-    const fastProvider = new MockProvider().setHandlers('eth_estimateGas', () => '0x5208');
+    const slowProvider = new MockProvider().setHandlers('eth_call', () => slow.promise);
+    const fastProvider = new MockProvider().setHandlers('eth_call', () => '0x5208');
     const hook = renderHook();
 
     let slowCall!: Promise<unknown>;
@@ -162,7 +162,7 @@ describe('usePhylaxRpcSwitch', () => {
     });
 
     await act(async () => {
-      oldProvider.resolve(new MockProvider().setHandlers('eth_estimateGas', () => '0x5208'));
+      oldProvider.resolve(new MockProvider().setHandlers('eth_call', () => '0x5208'));
       await expect(detection).rejects.toThrow(/no provider/);
     });
 
@@ -173,7 +173,7 @@ describe('usePhylaxRpcSwitch', () => {
 
   it('does not commit operation state from a superseded client config', async () => {
     const slow = deferred<unknown>();
-    const provider = new MockProvider().setHandlers('eth_estimateGas', () => slow.promise);
+    const provider = new MockProvider().setHandlers('eth_call', () => slow.promise);
     const hook = renderHook();
 
     let detection!: Promise<unknown>;
@@ -201,7 +201,7 @@ describe('usePhylaxRpcSwitch retry passthrough', () => {
       );
     };
     const provider = new MockProvider().setHandlers(
-      'eth_estimateGas',
+      'eth_call',
       unavailable,
       () => '0x5208',
     );
@@ -211,7 +211,7 @@ describe('usePhylaxRpcSwitch retry passthrough', () => {
       await hook.getResult().detect({ provider, transaction, retry: false });
     });
 
-    expect(provider.callsTo('eth_estimateGas')).toHaveLength(1);
+    expect(provider.callsTo('eth_call')).toHaveLength(1);
     expect(hook.getResult().detection?.status).toBe('inconclusive');
   });
 });

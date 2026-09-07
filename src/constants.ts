@@ -1,6 +1,12 @@
 import { asChainId, asMilliseconds } from './brands';
 import type { ChainId, Milliseconds } from './types';
 
+export const PREFLIGHT_METHODS = {
+  call: 'eth_call',
+  estimateGas: 'eth_estimateGas',
+  simulateV1: 'eth_simulateV1',
+} as const;
+
 /**
  * Selector for Solidity's `Error(string)` (`keccak256("Error(string)")[:4]`).
  *

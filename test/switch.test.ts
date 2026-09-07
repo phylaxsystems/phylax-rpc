@@ -35,6 +35,16 @@ function routingProvider(...callWords: string[]): MockProvider {
     .setHandlers('wallet_switchEthereumChain', () => null);
 }
 
+/** Keep routing reads separate from transaction probes now that both use eth_call. */
+function compatibilityProvider(...probes: Array<() => unknown>): MockProvider {
+  return routingProvider(FALSE_WORD).setHandlers('eth_call', (params) => {
+    if (firstArg({ params }).to !== tx.to) return FALSE_WORD;
+    const probe = probes.length > 1 ? probes.shift() : probes[0];
+    if (!probe) throw new Error('expected a transaction probe handler');
+    return probe();
+  });
+}
+
 describe('attemptSwitch', () => {
   it('short-circuits to manual fallback for non-allowlisted wallets', async () => {
     const provider = new MockProvider();
@@ -81,8 +91,7 @@ describe('attemptSwitch', () => {
   });
 
   it('activates when the compatibility probe shows an off→on transition', async () => {
-    const provider = routingProvider(FALSE_WORD).setHandlers(
-      'eth_estimateGas',
+    const provider = compatibilityProvider(
       () => {
         throw errorStringRevert('assertion failed'); // baseline: off-Phylax (probe is protected)
       },
@@ -103,7 +112,7 @@ describe('attemptSwitch', () => {
     const provider = new MockProvider()
       .setHandlers('eth_chainId', () => '0xa')
       .setHandlers(
-        'eth_estimateGas',
+        'eth_call',
         () => {
           throw errorStringRevert('assertion failed');
         },
@@ -127,7 +136,7 @@ describe('attemptSwitch', () => {
   it('does NOT confirm activation from a bare preflight success (probe not proven protected)', async () => {
     // Preflight passes both before and after — the probe never demonstrated protection, so
     // its success is ambiguous and must not be reported as activation.
-    const provider = routingProvider(FALSE_WORD).setHandlers('eth_estimateGas', () => '0x5208');
+    const provider = compatibilityProvider(() => '0x');
     const result = await attemptSwitch({ provider, wallet: zerionExt, config, verifyTransaction: tx });
     assertOutcome(result, 'unverified');
     expect(result.manualFallback).toBe(true);
@@ -143,7 +152,7 @@ describe('attemptSwitch', () => {
 
   it('falls back to manual when the wallet accepts-then-ignores the URL', async () => {
     // The probe keeps reverting off-Phylax before and after — never activated.
-    const provider = routingProvider(FALSE_WORD).setHandlers('eth_estimateGas', () => {
+    const provider = compatibilityProvider(() => {
       throw errorStringRevert('assertion failed');
     });
     const result = await attemptSwitch({ provider, wallet: zerionExt, config, verifyTransaction: tx });

@@ -1,4 +1,7 @@
 import { request } from './eip1193';
+import { isHex } from './brands';
+import { readProp } from './guards';
+import { PREFLIGHT_METHODS } from './constants';
 import { classifyRpcError, type RpcFailure } from './errors/rpc';
 import {
   isTransient,
@@ -78,7 +81,38 @@ export function buildPreflightParams(
   method: PreflightMethod,
 ): unknown[] {
   const normalized = normalizeTransaction(transaction);
-  return method === 'eth_call' ? [normalized, 'latest'] : [normalized];
+  switch (method) {
+    case PREFLIGHT_METHODS.call:
+      return [normalized, 'latest'];
+    case PREFLIGHT_METHODS.estimateGas:
+      return [normalized];
+    case PREFLIGHT_METHODS.simulateV1:
+      return [{ blockStateCalls: [{ calls: [normalized] }], validation: false }, 'latest'];
+  }
+}
+
+/** A successful RPC response can still contain a failed simulated transaction. */
+function checkSimulationResult(result: unknown): void {
+  const calls = Array.isArray(result) && result.length === 1
+    ? readProp(result[0], 'calls')
+    : undefined;
+  const call = Array.isArray(calls) && calls.length === 1 ? calls[0] : undefined;
+  const status = readProp(call, 'status');
+  const returnData = readProp(call, 'returnData');
+  const error = readProp(call, 'error');
+
+  if (
+    !isHex(returnData) ||
+    (status !== '0x0' && status !== '0x1') ||
+    (status === '0x1' && error != null)
+  ) {
+    throw new TypeError('eth_simulateV1 returned an invalid single-transaction result');
+  }
+  if (status === '0x0') {
+    // Preserve the nested code/message and expose returnData to the shared revert decoder.
+    // Empty data alone is not revert evidence: invalid transactions can fail here too.
+    throw { cause: error, data: returnData };
+  }
 }
 
 type RequestResult =
@@ -114,7 +148,7 @@ async function requestWithRetry(
 
 /**
  * Detect whether the wallet is routed off the Phylax RPC by running the SDK's *own*
- * preflight (`eth_estimateGas`/`eth_call`) and recognising the credible-require revert.
+ * preflight, `eth_call` by default, and recognising the credible-require revert.
  *
  * - Preflight succeeds → on Phylax (the Phylax RPC answers the require as-if in a
  *   credible block), or the tx is simply not credible-protected. Either way: no switch.
@@ -132,7 +166,7 @@ async function requestWithRetry(
  */
 export async function detectOffPhylax(options: DetectOptions): Promise<DetectionResult> {
   const { provider, config } = options;
-  const method = options.method ?? 'eth_estimateGas';
+  const method = options.method ?? PREFLIGHT_METHODS.call;
   const retryState: RetryState = { attempts: 0 };
 
   // Resolve the sender: explicit tx `from` → `options.account` → silent `eth_accounts`.
@@ -175,7 +209,11 @@ export async function detectOffPhylax(options: DetectOptions): Promise<Detection
   const params = buildPreflightParams(transaction, method);
 
   const preflight = await requestWithRetry(
-    () => request(provider, method, params),
+    async () => {
+      const result = await request(provider, method, params);
+      if (method === PREFLIGHT_METHODS.simulateV1) checkSimulationResult(result);
+      return result;
+    },
     options.retry,
     retryState,
   );
