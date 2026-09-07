@@ -114,6 +114,8 @@ await phylax.detect({ provider, transaction, method: PREFLIGHT_METHODS.estimateG
 ```
 
 Method strings (`'eth_estimateGas'`, `'eth_simulateV1'`) also work.
+When using `switch` with `verifyTransaction`, pass the same `method` to use it for both
+compatibility probes. The React hook's `attemptSwitch` accepts the same option.
 For every method, `detect` removes `gas` and `gasLimit` from the preflight request.
 The provider chooses the probe's gas budget, so a successful preflight does not guarantee
 that the submitted transaction will succeed with its gas limit.

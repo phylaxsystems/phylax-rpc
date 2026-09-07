@@ -48,6 +48,8 @@ export interface HookSwitchArgs {
   provider?: Eip1193Provider;
   wallet?: WalletClassification;
   verifyTransaction?: LooseTransactionRequest;
+  /** Method for both compatibility probes. Defaults to `eth_call` at `latest`. */
+  method?: PreflightMethod;
   /** Sender override for the verify probe when `verifyTransaction` omits `from`. */
   account?: string;
   force?: boolean;
@@ -320,6 +322,7 @@ export function usePhylaxRpcSwitch(
         provider,
         wallet,
         verifyTransaction: args.verifyTransaction,
+        method: args.method,
         account: args.account,
         force: args.force,
       });

@@ -415,6 +415,8 @@ export interface SwitchOptions {
    * {@link attemptSwitch}.
    */
   readonly verifyTransaction?: LooseTransactionRequest;
+  /** Method for both compatibility probes. Defaults to `eth_call` at `latest`. */
+  readonly method?: PreflightMethod;
   /** Sender for the compatibility probe when `verifyTransaction` omits `from`. */
   readonly account?: string;
   /** Run the assisted path even when the wallet is not on the allowlist (testing/advanced). */
@@ -435,6 +437,7 @@ export interface SwitchArgs {
   readonly provider: Eip1193Provider;
   readonly wallet: WalletClassification;
   readonly verifyTransaction?: LooseTransactionRequest;
+  readonly method?: PreflightMethod;
   readonly account?: string;
   readonly force?: boolean;
 }

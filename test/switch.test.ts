@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { PhylaxRpcSwitch } from '../src/client';
 import { resolveConfig } from '../src/config';
 import { attemptSwitch } from '../src/switch';
 import { classifyWallet } from '../src/wallets';
-import { WALLET_RDNS } from '../src/constants';
+import { PREFLIGHT_METHODS, WALLET_RDNS } from '../src/constants';
 import type { TransactionRequest, WalletClassification } from '../src/types';
 import {
   assertOutcome,
+  encodeErrorString,
   errorStringRevert,
   firstArg,
   MockProvider,
@@ -46,6 +48,38 @@ function compatibilityProvider(...probes: Array<() => unknown>): MockProvider {
 }
 
 describe('attemptSwitch', () => {
+  it.each([PREFLIGHT_METHODS.estimateGas, PREFLIGHT_METHODS.simulateV1])(
+    'verifies activation with %s through the public client',
+    async (method) => {
+      const provider = routingProvider(FALSE_WORD).setHandlers(
+        method,
+        () => {
+          if (method === PREFLIGHT_METHODS.simulateV1) {
+            return [{ calls: [{
+              status: '0x0',
+              returnData: encodeErrorString('assertion failed'),
+            }] }];
+          }
+          throw errorStringRevert('assertion failed');
+        },
+        () => method === PREFLIGHT_METHODS.simulateV1
+          ? [{ calls: [{ status: '0x1', returnData: '0x' }] }]
+          : '0x5208',
+      );
+      const client = new PhylaxRpcSwitch({ rpcUrl: config.rpcUrl });
+
+      const result = await client.switch({
+        provider, wallet: zerionExt, verifyTransaction: tx, method,
+      });
+
+      expect(result).toMatchObject({
+        outcome: 'activated', added: true, switched: true, manualFallback: false,
+      });
+      expect(provider.callsTo(method)).toHaveLength(2);
+      expect(provider.callsTo('eth_call').some((call) => firstArg(call).to === tx.to)).toBe(false);
+    },
+  );
+
   it('short-circuits to manual fallback for non-allowlisted wallets', async () => {
     const provider = new MockProvider();
     const result = await attemptSwitch({ provider, wallet: mmExt, config, verifyTransaction: tx });
