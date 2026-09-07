@@ -87,6 +87,40 @@ describe('eth_simulateV1 results', () => {
   });
 
   it.each([
+    undefined,
+    { code: 3 },
+    { message: 'execution reverted' },
+  ])('preserves raw simulation revert bytes with nested error %j', async (error) => {
+    const provider = new MockProvider().setHandlers(method, () => [{ calls: [{
+      status: '0x0', returnData: '0x1234', error,
+    }] }]);
+
+    const result = await detectOffPhylax({ provider, transaction, account, config, method });
+
+    expect(result).toMatchObject({ status: 'reverted', offPhylax: false, revertData: '0x1234' });
+    expect(provider.calls).toHaveLength(1);
+  });
+
+  it('preserves nested assertion data when simulation returnData is empty', async () => {
+    const revertData = encodeErrorString(reason);
+    const provider = new MockProvider().setHandlers(method, () => [{ calls: [{
+      status: '0x0',
+      returnData: '0x',
+      error: { code: 3, message: 'execution reverted', data: revertData },
+    }] }]);
+
+    const result = await detectOffPhylax({ provider, transaction, account, config, method });
+
+    expect(result).toMatchObject({
+      status: 'reverted',
+      offPhylax: false,
+      revertData,
+      revertReason: reason,
+      assertionRejection: { assertions: ['0x' + 'ab'.repeat(32)], omitted: 0 },
+    });
+  });
+
+  it.each([
     { code: 3, message: 'execution reverted' },
     { code: -32015, message: 'out of gas' },
     { code: -32015, message: 'invalid opcode: INVALID' },

@@ -114,7 +114,11 @@ function checkSimulationResult(result: unknown): RequestResult {
   }
   if (status === '0x0') {
     const executionError = { cause: error, data: returnData };
-    const failure = classifyRpcError(executionError);
+    let failure = classifyRpcError(executionError);
+    // The shared classifier filters for ABI-shaped data; simulation can return arbitrary bytes.
+    if (failure.kind === 'reverted' && failure.data === '0x') {
+      failure = { ...failure, data: returnData };
+    }
     // Zero status proves execution failed even without revert data or familiar node wording.
     // Keep decoded routing/assertion evidence, but never retry a completed failed execution.
     return {
