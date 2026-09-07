@@ -1,5 +1,13 @@
 # @phylax-systems/phylax-rpc
 
+## 0.4.0
+
+### Minor Changes
+
+- [#16](https://github.com/phylaxsystems/phylax-rpc/pull/16) [`4abe992`](https://github.com/phylaxsystems/phylax-rpc/commit/4abe992ece38148afa45eda5b1e1c0fb36201578) Thanks [@lean-apple](https://github.com/lean-apple)! - Default transaction detection to `eth_call` at `latest`. Keep `eth_estimateGas`
+  selectable per call, add an optional `eth_simulateV1` probe with nested result
+  classification, and document the preflight's gas and submission limits.
+
 ## 0.3.0
 
 ### Minor Changes
