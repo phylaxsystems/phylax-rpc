@@ -1,5 +1,13 @@
 # @phylax-systems/phylax-rpc
 
+## 0.5.0
+
+### Minor Changes
+
+- [#18](https://github.com/phylaxsystems/phylax-rpc/pull/18) [`5891231`](https://github.com/phylaxsystems/phylax-rpc/commit/5891231e4791485ce6051980ddb58b4df03ae4cd) Thanks [@fredo](https://github.com/fredo)! - Replace the V1 routing signal export with `PHYLAX_ROUTING_SIGNAL_V2` for the current Credible
+  Registry. Verify the stored sentinel marker through `lastCredibleBlock()` so zero-price
+  simulation bypasses cannot report an ordinary RPC as connected.
+
 ## 0.4.0
 
 ### Minor Changes
