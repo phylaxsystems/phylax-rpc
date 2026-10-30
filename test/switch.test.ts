@@ -16,8 +16,8 @@ import {
 
 const config = resolveConfig({ rpcUrl: 'https://rpc.phylax.example' });
 const tx: TransactionRequest = { from: '0x' + '11'.repeat(20), to: '0x' + '22'.repeat(20) };
-const TRUE_WORD = '0x' + '0'.repeat(63) + '1';
-const FALSE_WORD = '0x' + '0'.repeat(64);
+const SENTINEL_WORD = '0x' + '0'.repeat(48) + 'ffffffffffffffff';
+const ZERO_WORD = '0x' + '0'.repeat(64);
 
 const zerionExt: WalletClassification = classifyWallet({
   rdns: WALLET_RDNS.zerion,
@@ -39,8 +39,8 @@ function routingProvider(...callWords: string[]): MockProvider {
 
 /** Keep routing reads separate from transaction probes now that both use eth_call. */
 function compatibilityProvider(...probes: Array<() => unknown>): MockProvider {
-  return routingProvider(FALSE_WORD).setHandlers('eth_call', (params) => {
-    if (firstArg({ params }).to !== tx.to) return FALSE_WORD;
+  return routingProvider(ZERO_WORD).setHandlers('eth_call', (params) => {
+    if (firstArg({ params }).to !== tx.to) return ZERO_WORD;
     const probe = probes.length > 1 ? probes.shift() : probes[0];
     if (!probe) throw new Error('expected a transaction probe handler');
     return probe();
@@ -51,7 +51,7 @@ describe('attemptSwitch', () => {
   it.each([PREFLIGHT_METHODS.estimateGas, PREFLIGHT_METHODS.simulateV1])(
     'verifies activation with %s through the public client',
     async (method) => {
-      const provider = routingProvider(FALSE_WORD).setHandlers(
+      const provider = routingProvider(ZERO_WORD).setHandlers(
         method,
         () => {
           if (method === PREFLIGHT_METHODS.simulateV1) {
@@ -90,7 +90,7 @@ describe('attemptSwitch', () => {
   });
 
   it('skips onboarding when the wallet is already routed through Phylax', async () => {
-    const provider = routingProvider(TRUE_WORD);
+    const provider = routingProvider(SENTINEL_WORD);
     const result = await attemptSwitch({ provider, wallet: mmExt, config });
 
     expect(result).toMatchObject({
@@ -117,11 +117,25 @@ describe('attemptSwitch', () => {
   });
 
   it('uses the routing check to verify activation without a transaction', async () => {
-    const provider = routingProvider(FALSE_WORD, TRUE_WORD);
+    const provider = routingProvider(ZERO_WORD, SENTINEL_WORD);
     const result = await attemptSwitch({ provider, wallet: zerionExt, config });
 
     expect(result.outcome).toBe('activated');
     expect(result.manualFallback).toBe(false);
+  });
+
+  it('does not reuse a previous activation after the provider disconnects', async () => {
+    const provider = routingProvider(SENTINEL_WORD);
+    expect((await attemptSwitch({ provider, wallet: zerionExt, config })).outcome).toBe('activated');
+    provider.setHandlers('eth_call', () => { throw new Error('provider disconnected'); });
+
+    const result = await attemptSwitch({ provider, wallet: zerionExt, config });
+
+    assertOutcome(result, 'unverified');
+    expect(result.added).toBe(false);
+    expect(result.switched).toBe(false);
+    expect(provider.callsTo('wallet_addEthereumChain')).toHaveLength(0);
+    expect(provider.callsTo('wallet_switchEthereumChain')).toHaveLength(0);
   });
 
   it('activates when the compatibility probe shows an off→on transition', async () => {
@@ -177,7 +191,7 @@ describe('attemptSwitch', () => {
   });
 
   it('uses raw EIP-3085 add with chainId 0x1 and the Phylax rpcUrl', async () => {
-    const provider = routingProvider(FALSE_WORD);
+    const provider = routingProvider(ZERO_WORD);
     await attemptSwitch({ provider, wallet: zerionExt, config, verifyTransaction: tx });
     const added = firstArg(provider.callsTo('wallet_addEthereumChain')[0]);
     expect(added.chainId).toBe('0x1');
@@ -196,7 +210,7 @@ describe('attemptSwitch', () => {
   });
 
   it('returns rejected when the user declines the add', async () => {
-    const provider = routingProvider(FALSE_WORD).setHandlers('wallet_addEthereumChain', () => {
+    const provider = routingProvider(ZERO_WORD).setHandlers('wallet_addEthereumChain', () => {
       throw userRejection();
     });
     const result = await attemptSwitch({ provider, wallet: zerionExt, config, verifyTransaction: tx });
@@ -204,7 +218,7 @@ describe('attemptSwitch', () => {
   });
 
   it('recognises a user rejection wrapped under `cause`', async () => {
-    const provider = routingProvider(FALSE_WORD).setHandlers('wallet_addEthereumChain', () => {
+    const provider = routingProvider(ZERO_WORD).setHandlers('wallet_addEthereumChain', () => {
       throw { message: 'request failed', cause: { code: 4001 } };
     });
     const result = await attemptSwitch({ provider, wallet: zerionExt, config, verifyTransaction: tx });
@@ -213,7 +227,7 @@ describe('attemptSwitch', () => {
   });
 
   it('returns failed when the switch errors for a non-rejection reason', async () => {
-    const provider = routingProvider(FALSE_WORD).setHandlers('wallet_switchEthereumChain', () => {
+    const provider = routingProvider(ZERO_WORD).setHandlers('wallet_switchEthereumChain', () => {
       throw new Error('internal error');
     });
     const result = await attemptSwitch({ provider, wallet: zerionExt, config, verifyTransaction: tx });
@@ -222,7 +236,7 @@ describe('attemptSwitch', () => {
   });
 
   it('tolerates a recognised already-added chain and proceeds to switch', async () => {
-    const provider = routingProvider(FALSE_WORD, TRUE_WORD).setHandlers(
+    const provider = routingProvider(ZERO_WORD, SENTINEL_WORD).setHandlers(
       'wallet_addEthereumChain',
       () => {
         throw new Error('chain already added');
@@ -235,7 +249,7 @@ describe('attemptSwitch', () => {
   });
 
   it('preserves an unrecognised add error instead of swallowing it', async () => {
-    const provider = routingProvider(FALSE_WORD).setHandlers('wallet_addEthereumChain', () => {
+    const provider = routingProvider(ZERO_WORD).setHandlers('wallet_addEthereumChain', () => {
       throw new Error('invalid rpc endpoint');
     });
     const result = await attemptSwitch({ provider, wallet: zerionExt, config });
@@ -247,14 +261,14 @@ describe('attemptSwitch', () => {
   });
 
   it('cannot confirm activation when routing stays negative and no probe exists', async () => {
-    const provider = routingProvider(FALSE_WORD, FALSE_WORD);
+    const provider = routingProvider(ZERO_WORD, ZERO_WORD);
     const result = await attemptSwitch({ provider, wallet: zerionExt, config });
     expect(result.outcome).toBe('unverified');
     expect(result.manualFallback).toBe(true);
   });
 
   it('honours force for non-allowlisted wallets', async () => {
-    const provider = routingProvider(FALSE_WORD, TRUE_WORD);
+    const provider = routingProvider(ZERO_WORD, SENTINEL_WORD);
     const result = await attemptSwitch({ provider, wallet: mmExt, config, force: true });
     expect(result.outcome).toBe('activated');
   });
