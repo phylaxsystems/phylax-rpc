@@ -82,7 +82,7 @@ describe('PhylaxRpcSwitch', () => {
   it('exposes the silent Phylax routing check', async () => {
     const provider = new MockProvider()
       .setHandlers('eth_chainId', () => '0x1')
-      .setHandlers('eth_call', () => '0x' + '0'.repeat(63) + '1');
+      .setHandlers('eth_call', () => '0x' + '0'.repeat(48) + 'ffffffffffffffff');
 
     expect(await client.isConnectedToPhylax(provider)).toBe(true);
   });
@@ -92,13 +92,13 @@ describe('PhylaxRpcSwitch', () => {
     // Wallet is on the configured chain, but the marker is mainnet-only → never `connected`.
     const onConfigured = new MockProvider()
       .setHandlers('eth_chainId', () => '0x2105') // 8453
-      .setHandlers('eth_call', () => '0x' + '0'.repeat(63) + '1');
+      .setHandlers('eth_call', () => '0x' + '0'.repeat(48) + 'ffffffffffffffff');
     expect(await l2.isConnectedToPhylax(onConfigured)).toBe(false);
 
     // A mainnet wallet must not read as connected for an L2-configured client.
     const onMainnet = new MockProvider()
       .setHandlers('eth_chainId', () => '0x1')
-      .setHandlers('eth_call', () => '0x' + '0'.repeat(63) + '1');
+      .setHandlers('eth_call', () => '0x' + '0'.repeat(48) + 'ffffffffffffffff');
     expect(await l2.isConnectedToPhylax(onMainnet)).toBe(false);
   });
 

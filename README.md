@@ -102,6 +102,25 @@ helpers) live under `@phylax-systems/phylax-rpc/advanced`.
 
 See `examples/wagmi-swap-guard.tsx` for an end-to-end wagmi integration.
 
+### Silent routing signal
+
+`PHYLAX_ROUTING_SIGNAL_V2` reads `lastCredibleBlock()` from the mainnet registry with an
+`eth_call` block-number override of `0xffffffffffffffff`. A current Credible RPC writes
+that nonzero block number into its request-local marker before the read. Routing is confirmed
+only when the returned ABI `uint256` equals that sentinel; the probe does not supply a state
+override or write canonical state.
+
+An ordinary RPC returns its actual stored marker, which cannot match the sentinel. The probe
+does not use `isCredibleBlock()` as routing evidence because its zero-gas-price simulation
+bypass can return true without any marker. Providers that reject block overrides, malformed
+replies, and transient failures produce `inconclusive`; they do not trigger wallet changes on
+their own.
+Every probe reads the chain and marker afresh, without caching a previous positive result.
+
+The V2 export replaces `PHYLAX_ROUTING_SIGNAL_V1`. It requires the current registry deployment
+and an SDK with address-only marker configuration, as introduced by
+[credible-sdk#1556](https://github.com/phylaxsystems/credible-sdk/pull/1556).
+
 ### Preflight method
 
 `detect` defaults to `eth_call` at `latest`. Override with `estimateGas` for

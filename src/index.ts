@@ -8,7 +8,7 @@ export {
   WALLET_RDNS,
 } from './constants';
 
-export { isConnectedToPhylax, PHYLAX_ROUTING_SIGNAL_V1 } from './connection';
+export { isConnectedToPhylax, PHYLAX_ROUTING_SIGNAL_V2 } from './connection';
 
 export { detectOffPhylax } from './detect';
 
