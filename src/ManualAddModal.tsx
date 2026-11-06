@@ -1522,11 +1522,12 @@ export function ManualAddModal({
     };
   }, []);
 
-  // Invalidate any in-flight verification when the verifier identity changes, so a stale
-  // result from a superseded `verifyConnection` can't land on the modal.
+  // Discard displayed and in-flight results when the verifier identity changes, so a
+  // superseded `verifyConnection` can't leave the modal showing a stale success.
   useEffect(() => {
     verificationRunRef.current += 1;
     verificationPendingRunRef.current = null;
+    setVerificationState('idle');
   }, [verifyConnection]);
 
   const runVerification = useCallback(async (showChecking = true) => {
